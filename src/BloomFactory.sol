@@ -11,46 +11,52 @@ pragma solidity ^0.8.26;
 
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
-import {Orderbook} from "@bloom-v2/Orderbook.sol";
+import {BloomPool} from "@bloom-v2/BloomPool.sol";
 
 /**
- * @title BloomPool
- * @notice RWA pool contract facilitating the creation of Term Bound Yield Tokens through lending underlying tokens
- *         to market markers for 6 month terms.
+ * @title BloomFactory
+ * @notice Factory contract for creating BloomPool instances
  */
-contract BloomPool is Orderbook, Ownable2Step {
+contract BloomFactory is Ownable2Step {
+    /*///////////////////////////////////////////////////////////////
+                                Storage    
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Mapping of addresses validating if they are from the factory
+    mapping(address => bool) private _isFromFactory;
+
     /*///////////////////////////////////////////////////////////////
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(
-        address asset_,
-        address rwa_,
-        uint256 initLeverageBps,
-        address owner_
-    ) Ownable(owner_) Orderbook(asset_, rwa_, initLeverageBps) {}
+    constructor(address owner_) Ownable(owner_) {}
 
     /*///////////////////////////////////////////////////////////////
                                 Functions    
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Whitelists an address to be a KYCed borrower.
-     * @dev Only the owner can call this function.
-     * @param account The address of the borrower to whitelist.
+     * @notice Creates a new BloomPool instance
+     * @param asset_ The underlying asset for the pool
+     * @param rwa_ The RWA token for the pool
+     * @param initLeverageBps The initial leverage for the borrower
      */
-    function whitelistBorrower(address account) external onlyOwner {
-        _borrowers[account] = true;
-        emit BorrowerKYCed(account);
+    function createBloomPool(
+        address asset_,
+        address rwa_,
+        uint256 initLeverageBps
+    ) external onlyOwner returns (BloomPool) {
+        BloomPool pool = new BloomPool(asset_, rwa_, initLeverageBps, owner());
+        _isFromFactory[address(pool)] = true;
+        return pool;
     }
 
     /**
-     * @notice Whitelists an address to be a KYCed borrower.
-     * @dev Only the owner can call this function.
-     * @param account The address of the borrower to whitelist.
+     * @notice Checks if an address is from the factory
+     * @param account The address to check
+     * @return True if the address is from the factory
      */
-    function whitelistMarketMaker(address account) external onlyOwner {
-        _marketMakers[account] = true;
-        emit MarketMakerKYCed(account);
+    function isFromFactory(address account) external view returns (bool) {
+        return _isFromFactory[account];
     }
 }

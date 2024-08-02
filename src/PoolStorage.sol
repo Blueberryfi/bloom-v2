@@ -18,7 +18,7 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
  */
 abstract contract PoolStorage is IPoolStorage {
     /*///////////////////////////////////////////////////////////////
-                            Storage    
+                                Storage    
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Address of the underlying asset of the Pool.
@@ -43,12 +43,12 @@ abstract contract PoolStorage is IPoolStorage {
                             Modifiers    
     //////////////////////////////////////////////////////////////*/
 
-    modifier KYCBorrower() {
+    modifier KycBorrower() {
         require(_borrowers[msg.sender], Errors.KYCFailed());
         _;
     }
 
-    modifier KYCMarketMaker() {
+    modifier KycMarketMaker() {
         require(_marketMakers[msg.sender], Errors.KYCFailed());
         _;
     }
@@ -67,12 +67,26 @@ abstract contract PoolStorage is IPoolStorage {
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IPoolStorage
-    function asset() public view returns (address) {
+    function asset() external view returns (address) {
         return _asset;
     }
 
     /// @inheritdoc IPoolStorage
-    function rwa() public view returns (address) {
+    function rwa() external view returns (address) {
         return _rwa;
+    }
+
+    /// @inheritdoc IPoolStorage
+    function isKYCedBorrower(
+        address account
+    ) external view override returns (bool) {
+        return _borrowers[account];
+    }
+
+    /// @inheritdoc IPoolStorage
+    function isKYCedMarketMaker(
+        address account
+    ) external view override returns (bool) {
+        return _marketMakers[account];
     }
 }

@@ -15,7 +15,7 @@ pragma solidity ^0.8.26;
  */
 interface IOrderbook {
     /*///////////////////////////////////////////////////////////////
-                        Orderbook Events
+                                Events
     //////////////////////////////////////////////////////////////*/
     /**
      * @notice Emitted when a user creates a lend order.
@@ -26,10 +26,15 @@ interface IOrderbook {
 
     /**
      * @notice Emitted when a borrower fills a lend order.
-     * @param account The address of the user who filled the order.
+     * @param account The address of the user whos order was feeled.
+     * @param borrower The address of the borrower who filled the order.
      * @param amount The amount of underlying assets filled in the order.
      */
-    event OrderFilled(address indexed account, uint256 amount);
+    event OrderFilled(
+        address indexed account,
+        address indexed borrower,
+        uint256 amount
+    );
 
     /**
      * @notice Emitted when a user kills a lend order.
@@ -39,8 +44,14 @@ interface IOrderbook {
      */
     event OrderKilled(address indexed account, uint256 id, uint256 amount);
 
+    /**
+     * @notice Emitted when the borrowers leverage amount is updated
+     * @param leverageBps The updated leverage amount for the borrower.
+     */
+    event LeverageBpsSet(uint256 leverageBps);
+
     /*///////////////////////////////////////////////////////////////
-                        Order Management Functions
+                            Functions
     //////////////////////////////////////////////////////////////*/
 
     /**
@@ -82,7 +93,12 @@ interface IOrderbook {
      */
     function killOrder(uint256 orderId, uint256 amount) external;
 
-    /*///////////////////////////////////////////////////////////////
-                        Orderbook View Functions
-    //////////////////////////////////////////////////////////////*/
+    /**
+     * @notice Updates the leverage value for future borrower fills
+     * @param leverageBps Updated leverage Bips
+     */
+    function setLeverageBps(uint256 leverageBps) external;
+
+    /// @notice Returns the current leverage value for the borrower
+    function leverageBps() external view returns (uint256);
 }

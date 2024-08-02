@@ -9,10 +9,11 @@
 */
 pragma solidity ^0.8.26;
 
-import {BloomTestSetup} from "./BloomTestSetup.t.sol";
+/**
+ * @title ILTBY
+ * @notice Interface for the Lender Term Bound Yield Token
+ */
+interface ILTBY {
 
-contract OrderbookTest is BloomTestSetup {
-    function setUp() public override {
-        super.setUp();
-    }
+
 }

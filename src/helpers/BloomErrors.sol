@@ -27,6 +27,9 @@ library BloomErrors {
     /// @notice Emitted when an operation is trying to access more liquidity than there is depth.
     error InsufficientDepth();
 
+    /// @notice Emitted the admin inputs a leverage value that is not within the bounds. (0, 100)
+    error InvalidLeverage();
+
     /*///////////////////////////////////////////////////////////////
                             KYC Errors    
     //////////////////////////////////////////////////////////////*/

@@ -29,22 +29,30 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     using SafeERC20 for IERC20;
     using Math for uint256;
 
+    /*///////////////////////////////////////////////////////////////
+                            Storage    
+    //////////////////////////////////////////////////////////////*/
+
     /// @notice Addresss of the lTby token
     LTby private _lTby;
 
     /// @notice Addresss of the bTby token
     BTby private _bTby;
 
+    /// @notice Current total depth of unfilled orders.
+    uint256 private _depth;
+
     /// @notice Mapping of the borrowers leverage on matching orders.
     uint256 private _leverageBps;
 
-    /// @notice Current total depth of unfilled orders.
-    uint256 private _depth;
+    /*///////////////////////////////////////////////////////////////
+                            Constructor    
+    //////////////////////////////////////////////////////////////*/
 
     constructor(
         address asset_,
         address rwa_,
-        uint8 initLeverageBps
+        uint256 initLeverageBps
     ) PoolStorage(asset_, rwa_) {
         _leverageBps = initLeverageBps;
 
@@ -52,6 +60,10 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         _lTby = new LTby(address(this));
         _bTby = new BTby(address(this));
     }
+
+    /*///////////////////////////////////////////////////////////////
+                            Functions    
+    //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IOrderbook
     function lendOrder(uint256 amount) external {
@@ -68,7 +80,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     function fillOrder(
         address order,
         uint256 amount
-    ) external KYCBorrower returns (uint256 filled) {
+    ) external KycBorrower returns (uint256 filled) {
         require(amount > 0, Errors.ZeroAmount());
 
         filled = _fillOrder(order, amount);
@@ -79,7 +91,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     function fillOrders(
         address[] memory accounts,
         uint256 amount
-    ) external KYCBorrower returns (uint256 filled) {
+    ) external KycBorrower returns (uint256 filled) {
         require(amount > 0, Errors.ZeroAmount());
 
         uint256 len = accounts.length;
@@ -95,11 +107,11 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         address account,
         uint256 amount
     ) internal returns (uint256 filled) {
-        uint256 orderDepth = _lTby.openBalanceOf(account);
+        uint256 orderDepth = _lTby.openBalance(account);
         filled = Math.min(orderDepth, amount);
         _depth -= filled;
         _lTby.stage(account, msg.sender, filled);
-        emit OrderFilled(msg.sender, filled);
+        emit OrderFilled(account, msg.sender, filled);
     }
 
     /// @inheritdoc IOrderbook
@@ -115,6 +127,20 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         _bTby.increaseIdleCapital(borrowers, amounts);
         IERC20(_asset).safeTransfer(msg.sender, amount);
         emit OrderKilled(msg.sender, id, amount);
+    }
+
+    /// @inheritdoc IOrderbook
+    function setLeverageBps(uint256 leverageBps_) external {
+        require(
+            leverageBps_ > 0 && leverageBps_ <= 100,
+            Errors.InvalidLeverage()
+        );
+        _leverageBps = leverageBps_;
+    }
+
+    /// @inheritdoc IOrderbook
+    function leverageBps() external view override returns (uint256) {
+        return _leverageBps;
     }
 
     function _depositBorrower(uint256 amountMatched) internal {

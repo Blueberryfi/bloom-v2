@@ -13,12 +13,18 @@ import {ERC20} from "@solady/tokens/ERC20.sol";
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
 
+import {IBTBY} from "@bloom-v2/interfaces/IBTBY.sol";
+
 /**
  * @title BTby
  * @notice bTbys or borrowerTBYs are tokens representing a borrower's position in the Bloom v2 protocol.
  */
-contract BTby is ERC20 {
+contract BTby is IBTBY, ERC20 {
     using Math for uint256;
+
+    /*///////////////////////////////////////////////////////////////
+                            Storage    
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice Address of the BloomPool contract.
     address private immutable _bloomPool;
@@ -26,14 +32,26 @@ contract BTby is ERC20 {
     /// @notice Mapping of borrower's to their idle capital.
     mapping(address => uint256) private _idleCapital;
 
+    /*///////////////////////////////////////////////////////////////
+                            Modifiers    
+    //////////////////////////////////////////////////////////////*/
+
     modifier onlyBloom() {
         require(msg.sender == _bloomPool, Errors.NotBloom());
         _;
     }
 
+    /*///////////////////////////////////////////////////////////////
+                            Constructor    
+    //////////////////////////////////////////////////////////////*/
+
     constructor(address bloomPool_) {
         _bloomPool = bloomPool_;
     }
+
+    /*///////////////////////////////////////////////////////////////
+                                Functions
+    //////////////////////////////////////////////////////////////*/
 
     function mint(
         address account,
@@ -44,6 +62,7 @@ contract BTby is ERC20 {
         if (idleUsed > 0) {
             _idleCapital[account] -= idleUsed;
             amount -= idleUsed;
+            emit IdleCapitalDecreased(account, idleUsed);
         }
         _mint(account, amount);
         return amount;
@@ -61,6 +80,7 @@ contract BTby is ERC20 {
         require(length == amount.length, Errors.ArrayMismatch());
         for (uint256 i = 0; i < length; i++) {
             _idleCapital[account[i]] += amount[i];
+            emit IdleCapitalIncreased(account[i], amount[i]);
         }
     }
 
@@ -69,6 +89,7 @@ contract BTby is ERC20 {
         require(amount > 0, Errors.ZeroAmount());
         _idleCapital[account] -= amount;
         _burn(account, amount);
+        emit IdleCapitalWithdrawn(account, amount);
     }
 
     function name() public pure override returns (string memory) {
