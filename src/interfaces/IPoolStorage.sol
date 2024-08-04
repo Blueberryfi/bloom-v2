@@ -28,11 +28,17 @@ interface IPoolStorage {
                               Functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Returns the address of the underlying asset of the Pool.
+    /// @notice Returns the address of the underlying asset of the pool.
     function asset() external view returns (address);
 
-    /// @notice Returns the address of the RWA token of the Pool.
+    /// @notice Returns the number of decimals for the underlying asset of the pool.
+    function assetDecimals() external view returns (uint8);
+
+    /// @notice Returns the address of the RWA token of the pool.
     function rwa() external view returns (address);
+
+    /// @notice Returns the number of decimals for the RWA token of the pool.
+    function rwaDecimals() external view returns (uint8);
 
     /**
      * @notice Returns if the user is a valid borrower.

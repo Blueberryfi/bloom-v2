@@ -37,6 +37,9 @@ library BloomErrors {
     /// @notice Emitted when a users tries to interact with a function that requires KYC verification.
     error KYCFailed();
 
+    /// @notice Emitted when a user tries to transfer a bTBY token.
+    error KYCTokenNotTransferable();
+
     /*///////////////////////////////////////////////////////////////
                             Token Errors
     //////////////////////////////////////////////////////////////*/

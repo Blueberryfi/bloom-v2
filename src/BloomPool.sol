@@ -26,7 +26,7 @@ contract BloomPool is Orderbook, Ownable2Step {
     constructor(
         address asset_,
         address rwa_,
-        uint256 initLeverageBps,
+        uint16 initLeverageBps,
         address owner_
     ) Ownable(owner_) Orderbook(asset_, rwa_, initLeverageBps) {}
 

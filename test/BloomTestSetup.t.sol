@@ -41,7 +41,7 @@ abstract contract BloomTestSetup is Test {
         bloomPool = bloomFactory.createBloomPool(
             address(stable),
             address(billToken),
-            200
+            initialLeverageBps
         );
         vm.stopPrank();
     }

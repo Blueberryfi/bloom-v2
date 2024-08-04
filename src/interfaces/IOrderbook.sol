@@ -51,6 +51,32 @@ interface IOrderbook {
     event LeverageBpsSet(uint256 leverageBps);
 
     /*///////////////////////////////////////////////////////////////
+                                Structs
+    //////////////////////////////////////////////////////////////*/
+    /**
+     * @notice Struct to store the details of a lend order that has been matched.
+     * @param borrower The address of the borrower who filled the order.
+     * @param leverage The leverage amount for the borrower at the time the order was matched.
+     * @param amount The amount of underlying assets filled in the order.
+     */
+    struct MatchOrder {
+        address borrower;
+        uint16 leverage;
+        uint256 amount;
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                                Enums
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Enum to differentiate between the different types of orders
+    enum OrderType {
+        OPEN, // All open orders will have an id of 0
+        MATCHED, // All matched orders will have an id of 1
+        LIVE // All live orders will have a blended id of 2 and the orders start timestamp
+    }
+
+    /*///////////////////////////////////////////////////////////////
                             Functions
     //////////////////////////////////////////////////////////////*/
 
@@ -97,8 +123,8 @@ interface IOrderbook {
      * @notice Updates the leverage value for future borrower fills
      * @param leverageBps Updated leverage Bips
      */
-    function setLeverageBps(uint256 leverageBps) external;
+    function setLeverageBps(uint16 leverageBps) external;
 
     /// @notice Returns the current leverage value for the borrower
-    function leverageBps() external view returns (uint256);
+    function leverageBps() external view returns (uint16);
 }

@@ -13,6 +13,7 @@ import {ERC20} from "@solady/tokens/ERC20.sol";
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
 
+import {BloomPool} from "@bloom-v2/BloomPool.sol";
 import {IBTBY} from "@bloom-v2/interfaces/IBTBY.sol";
 
 /**
@@ -28,6 +29,9 @@ contract BTby is IBTBY, ERC20 {
 
     /// @notice Address of the BloomPool contract.
     address private immutable _bloomPool;
+
+    /// @notice The number of decimals for the token.
+    uint8 private immutable _decimals;
 
     /// @notice Mapping of borrower's to their idle capital.
     mapping(address => uint256) private _idleCapital;
@@ -45,8 +49,9 @@ contract BTby is IBTBY, ERC20 {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address bloomPool_) {
+    constructor(address bloomPool_, uint8 decimals_) {
         _bloomPool = bloomPool_;
+        _decimals = decimals_;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -70,6 +75,29 @@ contract BTby is IBTBY, ERC20 {
 
     function burn(address account, uint256 amount) external onlyBloom {
         _burn(account, amount);
+    }
+
+    function transfer(
+        address /*to*/,
+        uint256 /*amount*/
+    ) public pure override returns (bool) {
+        _revertTransfer();
+    }
+
+    function transferFrom(
+        address /*from*/,
+        address /*to*/,
+        uint256 /*amount*/
+    ) public pure override returns (bool) {
+        _revertTransfer();
+    }
+
+    function _revertTransfer() private pure {
+        revert Errors.KYCTokenNotTransferable();
+    }
+
+    function decimals() public view override returns (uint8) {
+        return _decimals;
     }
 
     function increaseIdleCapital(

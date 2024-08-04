@@ -26,8 +26,16 @@ contract BloomUnitTest is BloomTestSetup {
         assertEq(bloomPool.asset(), address(stable));
     }
 
+    function testAssetDecimals() public view {
+        assertEq(bloomPool.assetDecimals(), stable.decimals());
+    }
+
     function testRwa() public view {
         assertEq(bloomPool.rwa(), address(billToken));
+    }
+
+    function testRwaDecimals() public view {
+        assertEq(bloomPool.rwaDecimals(), billToken.decimals());
     }
 
     function test_LeverageBps() public view {

@@ -9,8 +9,13 @@
 */
 pragma solidity ^0.8.26;
 
-import {IPoolStorage} from "@bloom-v2/interfaces/IPoolStorage.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
+
+import {LTby} from "@bloom-v2/token/LTby.sol";
+import {BTby} from "@bloom-v2/token/BTby.sol";
+import {IPoolStorage} from "@bloom-v2/interfaces/IPoolStorage.sol";
 
 /**
  * @title Pool Storage
@@ -20,6 +25,12 @@ abstract contract PoolStorage is IPoolStorage {
     /*///////////////////////////////////////////////////////////////
                                 Storage    
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice Addresss of the lTby token
+    LTby internal _lTby;
+
+    /// @notice Addresss of the bTby token
+    BTby internal _bTby;
 
     /// @notice Address of the underlying asset of the Pool.
     address internal immutable _asset;
@@ -60,6 +71,13 @@ abstract contract PoolStorage is IPoolStorage {
     constructor(address asset_, address rwa_) {
         _asset = asset_;
         _rwa = rwa_;
+
+        uint8 decimals = IERC20Metadata(asset_).decimals();
+        _lTby = new LTby(address(this), decimals);
+        _bTby = new BTby(address(this), decimals);
+
+        _assetDecimals = decimals;
+        _rwaDecimals = IERC20Metadata(rwa_).decimals();
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -72,8 +90,18 @@ abstract contract PoolStorage is IPoolStorage {
     }
 
     /// @inheritdoc IPoolStorage
+    function assetDecimals() external view override returns (uint8) {
+        return _assetDecimals;
+    }
+
+    /// @inheritdoc IPoolStorage
     function rwa() external view returns (address) {
         return _rwa;
+    }
+
+    /// @inheritdoc IPoolStorage
+    function rwaDecimals() external view override returns (uint8) {
+        return _rwaDecimals;
     }
 
     /// @inheritdoc IPoolStorage

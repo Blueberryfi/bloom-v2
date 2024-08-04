@@ -15,6 +15,7 @@ import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {BloomPool} from "@bloom-v2/BloomPool.sol";
+import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 
 /**
  * @title LTby
@@ -30,23 +31,8 @@ contract LTby is ERC1155 {
     /// @notice Address of the BloomPool contract.
     address private immutable _bloomPool;
 
-    /// @notice Mapping of the user's matched orders.
-    mapping(address => MatchOrder[]) private _userMatchedOrders;
-
-    /*///////////////////////////////////////////////////////////////
-                                Structs    
-    //////////////////////////////////////////////////////////////*/
-
-    struct MatchOrder {
-        address borrower;
-        uint256 amount;
-    }
-
-    enum OrderType {
-        OPEN, // All open orders will have an id of 0
-        MATCHED, // All matched orders will have an id of 1
-        LIVE // All live orders will have a blended id of 2 and the orders start timestamp
-    }
+    /// @notice The number of decimals for the token.
+    uint8 private immutable _decimals;
 
     /*///////////////////////////////////////////////////////////////
                                 Modifiers    
@@ -61,13 +47,18 @@ contract LTby is ERC1155 {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address bloomPool_) {
+    constructor(address bloomPool_, uint8 decimals_) {
         _bloomPool = bloomPool_;
+        _decimals = decimals_;
     }
 
     /*///////////////////////////////////////////////////////////////
                             Functions
     //////////////////////////////////////////////////////////////*/
+
+    function decimals() external view returns (uint8) {
+        return _decimals;
+    }
 
     function uri(
         uint256 id
@@ -87,7 +78,7 @@ contract LTby is ERC1155 {
      * @param amount The amount of underlying tokens being placed into the orderbook.
      */
     function open(address account, uint256 amount) external onlyBloom {
-        _mint(account, uint256(OrderType.OPEN), amount, "");
+        _mint(account, uint256(IOrderbook.OrderType.OPEN), amount, "");
     }
 
     /**
@@ -99,39 +90,7 @@ contract LTby is ERC1155 {
         address account,
         uint256 id,
         uint256 amount
-    )
-        external
-        onlyBloom
-        returns (address[] memory borrowers, uint256[] memory removedAmounts)
-    {
-        require(
-            id == uint256(OrderType.OPEN) || id == uint256(OrderType.MATCHED),
-            Errors.InvalidOrderType()
-        );
-        require(balanceOf(account, id) >= amount, Errors.InsufficientDepth());
-
-        if (id == uint256(OrderType.MATCHED)) {
-            MatchOrder[] storage matches = _userMatchedOrders[account];
-            uint256 remainingAmount = amount;
-
-            uint256 length = matches.length;
-            for (uint256 i = length - 1; i == 0; --i) {
-                uint256 matchedAmount = Math.min(
-                    remainingAmount,
-                    matches[i].amount
-                );
-
-                matches[i].amount -= matchedAmount;
-                remainingAmount -= matchedAmount;
-                borrowers[i] = matches[i].borrower;
-                removedAmounts[i] = matchedAmount;
-
-                if (matches[i].amount == 0) {
-                    matches.pop();
-                }
-            }
-        }
-
+    ) external onlyBloom {
         _burn(account, id, amount);
     }
 
@@ -141,14 +100,9 @@ contract LTby is ERC1155 {
      * @dev Only the BloomPool can call this function.
      * @param amount The amount of underlying tokens that have been matched.
      */
-    function stage(
-        address account,
-        address borrower,
-        uint256 amount
-    ) external onlyBloom {
-        _burn(account, uint256(OrderType.OPEN), amount);
-        _mint(account, uint256(OrderType.MATCHED), amount, "");
-        _userMatchedOrders[account].push(MatchOrder(borrower, amount));
+    function stage(address account, uint256 amount) external onlyBloom {
+        _burn(account, uint256(IOrderbook.OrderType.OPEN), amount);
+        _mint(account, uint256(IOrderbook.OrderType.MATCHED), amount, "");
     }
 
     /**
@@ -157,18 +111,20 @@ contract LTby is ERC1155 {
      * @dev Only the BloomPool can call this function.
      * @param amount The amount of underlying tokens that have been matched.
      */
-    function redeem(uint256 amount) external onlyBloom {}
+    function redeem(uint256 amount) external onlyBloom {
+        /// Not implemented at this time
+    }
 
     function openBalance(address account) public view returns (uint256) {
-        return balanceOf(account, uint256(OrderType.OPEN));
+        return balanceOf(account, uint256(IOrderbook.OrderType.OPEN));
     }
 
     function matchedBalance(address account) public view returns (uint256) {
-        return balanceOf(account, uint256(OrderType.MATCHED));
+        return balanceOf(account, uint256(IOrderbook.OrderType.MATCHED));
     }
 
     function liveBalance(address account) public view returns (uint256) {
-        return balanceOf(account, uint256(OrderType.LIVE));
+        return balanceOf(account, uint256(IOrderbook.OrderType.LIVE));
     }
 
     function totalValueLocked(

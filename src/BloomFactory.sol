@@ -44,7 +44,7 @@ contract BloomFactory is Ownable2Step {
     function createBloomPool(
         address asset_,
         address rwa_,
-        uint256 initLeverageBps
+        uint16 initLeverageBps
     ) external onlyOwner returns (BloomPool) {
         BloomPool pool = new BloomPool(asset_, rwa_, initLeverageBps, owner());
         _isFromFactory[address(pool)] = true;

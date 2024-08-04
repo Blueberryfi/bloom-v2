@@ -18,8 +18,6 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 
 import {PoolStorage} from "@bloom-v2/PoolStorage.sol";
-import {LTby} from "@bloom-v2/token/LTby.sol";
-import {BTby} from "@bloom-v2/token/BTby.sol";
 
 /**
  * @title Orderbook
@@ -33,17 +31,17 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
                             Storage    
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Addresss of the lTby token
-    LTby private _lTby;
-
-    /// @notice Addresss of the bTby token
-    BTby private _bTby;
-
     /// @notice Current total depth of unfilled orders.
-    uint256 private _depth;
+    uint256 private _openDepth;
+
+    /// @notice Current total depth of matched orders.
+    uint256 private _matchedDepth;
 
     /// @notice Mapping of the borrowers leverage on matching orders.
-    uint256 private _leverageBps;
+    uint16 private _leverageBps;
+
+    /// @notice Mapping of the user's matched orders.
+    mapping(address => MatchOrder[]) private _userMatchedOrders;
 
     /*///////////////////////////////////////////////////////////////
                             Constructor    
@@ -52,13 +50,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     constructor(
         address asset_,
         address rwa_,
-        uint256 initLeverageBps
+        uint16 initLeverageBps
     ) PoolStorage(asset_, rwa_) {
         _leverageBps = initLeverageBps;
-
-        // Initialize the lTby and bTby tokens
-        _lTby = new LTby(address(this));
-        _bTby = new BTby(address(this));
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -69,7 +63,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     function lendOrder(uint256 amount) external {
         require(amount > 0, Errors.ZeroAmount());
 
-        _depth += amount;
+        _openDepth += amount;
         IERC20(_asset).safeTransferFrom(msg.sender, address(this), amount);
         _lTby.open(msg.sender, amount);
 
@@ -109,28 +103,69 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     ) internal returns (uint256 filled) {
         uint256 orderDepth = _lTby.openBalance(account);
         filled = Math.min(orderDepth, amount);
-        _depth -= filled;
-        _lTby.stage(account, msg.sender, filled);
+        _openDepth -= filled;
+        _matchedDepth += filled;
+        _lTby.stage(account, filled);
+        _userMatchedOrders[account].push(
+            MatchOrder(msg.sender, _leverageBps, amount)
+        );
+
         emit OrderFilled(account, msg.sender, filled);
     }
 
     /// @inheritdoc IOrderbook
     function killOrder(uint256 id, uint256 amount) external {
         uint256 orderDepth = _lTby.balanceOf(msg.sender, id);
-        require(amount <= orderDepth, Errors.InsufficientDepth());
-        _depth -= amount;
-        (address[] memory borrowers, uint256[] memory amounts) = _lTby.close(
-            msg.sender,
-            id,
-            amount
+        require(
+            id == uint256(OrderType.OPEN) || id == uint256(OrderType.MATCHED),
+            Errors.InvalidOrderType()
         );
-        _bTby.increaseIdleCapital(borrowers, amounts);
+        require(amount <= orderDepth, Errors.InsufficientDepth());
+
+        if (id == uint256(OrderType.MATCHED)) {
+            (
+                address[] memory borrowers,
+                uint256[] memory removedAmounts
+            ) = _closeMatchOrder(amount);
+            _matchedDepth -= amount;
+            _bTby.increaseIdleCapital(borrowers, removedAmounts);
+        }
+
+        _lTby.close(msg.sender, id, amount);
+
         IERC20(_asset).safeTransfer(msg.sender, amount);
         emit OrderKilled(msg.sender, id, amount);
     }
 
+    function _closeMatchOrder(
+        uint256 amount
+    )
+        internal
+        returns (address[] memory borrowers, uint256[] memory removedAmounts)
+    {
+        MatchOrder[] storage matches = _userMatchedOrders[msg.sender];
+        uint256 remainingAmount = amount;
+
+        uint256 length = matches.length;
+        for (uint256 i = length - 1; i == 0; --i) {
+            uint256 matchedAmount = Math.min(
+                remainingAmount,
+                matches[i].amount
+            );
+
+            matches[i].amount -= matchedAmount;
+            remainingAmount -= matchedAmount;
+            borrowers[i] = matches[i].borrower;
+            removedAmounts[i] = matchedAmount;
+
+            if (matches[i].amount == 0) {
+                matches.pop();
+            }
+        }
+    }
+
     /// @inheritdoc IOrderbook
-    function setLeverageBps(uint256 leverageBps_) external {
+    function setLeverageBps(uint16 leverageBps_) external {
         require(
             leverageBps_ > 0 && leverageBps_ <= 100,
             Errors.InvalidLeverage()
@@ -139,7 +174,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function leverageBps() external view override returns (uint256) {
+    function leverageBps() external view override returns (uint16) {
         return _leverageBps;
     }
 
