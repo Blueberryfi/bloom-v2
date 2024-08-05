@@ -11,6 +11,8 @@ pragma solidity ^0.8.26;
 
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
+import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
+
 import {Orderbook} from "@bloom-v2/Orderbook.sol";
 
 /**
@@ -52,5 +54,18 @@ contract BloomPool is Orderbook, Ownable2Step {
     function whitelistMarketMaker(address account) external onlyOwner {
         _marketMakers[account] = true;
         emit MarketMakerKYCed(account);
+    }
+
+    /**
+     * @notice Updates the leverage value for future borrower fills
+     * @param leverageBps_ Updated leverage Bips
+     */
+    function setLeverageBps(uint16 leverageBps_) external onlyOwner {
+        require(
+            leverageBps_ > 0 && leverageBps_ <= 100,
+            Errors.InvalidLeverage()
+        );
+        _leverageBps = leverageBps_;
+        emit LeverageBpsSet(leverageBps_);
     }
 }

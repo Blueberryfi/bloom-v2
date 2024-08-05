@@ -28,11 +28,13 @@ interface IOrderbook {
      * @notice Emitted when a borrower fills a lend order.
      * @param account The address of the user whos order was feeled.
      * @param borrower The address of the borrower who filled the order.
+     * @param leverage The leverage amount for the borrower at the time the order was matched.
      * @param amount The amount of underlying assets filled in the order.
      */
     event OrderFilled(
         address indexed account,
         address indexed borrower,
+        uint16 leverage,
         uint256 amount
     );
 
@@ -43,12 +45,6 @@ interface IOrderbook {
      * @param amount The amount of underlying assets returned to the user.
      */
     event OrderKilled(address indexed account, uint256 id, uint256 amount);
-
-    /**
-     * @notice Emitted when the borrowers leverage amount is updated
-     * @param leverageBps The updated leverage amount for the borrower.
-     */
-    event LeverageBpsSet(uint256 leverageBps);
 
     /*///////////////////////////////////////////////////////////////
                                 Structs
@@ -118,12 +114,6 @@ interface IOrderbook {
      * @param amount The amount of underlying assets to remove from your order.
      */
     function killOrder(uint256 orderId, uint256 amount) external;
-
-    /**
-     * @notice Updates the leverage value for future borrower fills
-     * @param leverageBps Updated leverage Bips
-     */
-    function setLeverageBps(uint16 leverageBps) external;
 
     /// @notice Returns the current leverage value for the borrower
     function leverageBps() external view returns (uint16);

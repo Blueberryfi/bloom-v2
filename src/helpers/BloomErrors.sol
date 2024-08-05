@@ -59,6 +59,9 @@ library BloomErrors {
     /// @notice Emitted when a users inputs an invalid amount.
     error ZeroAmount();
 
+    /// @notice Emitted when a user inputs an invalid address.
+    error ZeroAddress();
+
     /// @notice Emiited when a user tries to spend more than their balance.
     error InsufficientBalance();
 

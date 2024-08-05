@@ -44,6 +44,9 @@ abstract contract PoolStorage is IPoolStorage {
     /// @notice Decimals of the RWA token of the Pool.
     uint8 internal immutable _rwaDecimals;
 
+    /// @notice Mapping of the borrowers leverage on matching orders.
+    uint16 internal _leverageBps;
+
     /// @notice Mapping of KYCed borrowers.
     mapping(address => bool) internal _borrowers;
 
@@ -83,6 +86,14 @@ abstract contract PoolStorage is IPoolStorage {
     /*///////////////////////////////////////////////////////////////
                             Functions    
     //////////////////////////////////////////////////////////////*/
+
+    function lTby() external view returns (address) {
+        return address(_lTby);
+    }
+
+    function bTby() external view returns (address) {
+        return address(_bTby);
+    }
 
     /// @inheritdoc IPoolStorage
     function asset() external view returns (address) {

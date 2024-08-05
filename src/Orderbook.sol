@@ -37,9 +37,6 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     /// @notice Current total depth of matched orders.
     uint256 private _matchedDepth;
 
-    /// @notice Mapping of the borrowers leverage on matching orders.
-    uint16 private _leverageBps;
-
     /// @notice Mapping of the user's matched orders.
     mapping(address => MatchOrder[]) private _userMatchedOrders;
 
@@ -75,8 +72,6 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         address order,
         uint256 amount
     ) external KycBorrower returns (uint256 filled) {
-        require(amount > 0, Errors.ZeroAmount());
-
         filled = _fillOrder(order, amount);
         _depositBorrower(filled);
     }
@@ -86,8 +81,6 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         address[] memory accounts,
         uint256 amount
     ) external KycBorrower returns (uint256 filled) {
-        require(amount > 0, Errors.ZeroAmount());
-
         uint256 len = accounts.length;
         for (uint256 i = 0; i != len; ++i) {
             uint256 size = _fillOrder(accounts[i], amount);
@@ -101,16 +94,21 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         address account,
         uint256 amount
     ) internal returns (uint256 filled) {
+        require(account != address(0), Errors.ZeroAddress());
+        require(amount > 0, Errors.ZeroAmount());
+
         uint256 orderDepth = _lTby.openBalance(account);
+
         filled = Math.min(orderDepth, amount);
         _openDepth -= filled;
         _matchedDepth += filled;
+
         _lTby.stage(account, filled);
         _userMatchedOrders[account].push(
             MatchOrder(msg.sender, _leverageBps, amount)
         );
 
-        emit OrderFilled(account, msg.sender, filled);
+        emit OrderFilled(account, msg.sender, _leverageBps, filled);
     }
 
     /// @inheritdoc IOrderbook
@@ -165,15 +163,6 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function setLeverageBps(uint16 leverageBps_) external {
-        require(
-            leverageBps_ > 0 && leverageBps_ <= 100,
-            Errors.InvalidLeverage()
-        );
-        _leverageBps = leverageBps_;
-    }
-
-    /// @inheritdoc IOrderbook
     function leverageBps() external view override returns (uint16) {
         return _leverageBps;
     }
@@ -190,5 +179,13 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
             address(this),
             amountMinted
         );
+    }
+
+    function openDepth() external view returns (uint256) {
+        return _openDepth;
+    }
+
+    function matchedDepth() external view returns (uint256) {
+        return _matchedDepth;
     }
 }

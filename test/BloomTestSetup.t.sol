@@ -13,12 +13,16 @@ import {Test, console} from "forge-std/Test.sol";
 
 import {BloomFactory} from "@bloom-v2/BloomFactory.sol";
 import {BloomPool} from "@bloom-v2/BloomPool.sol";
+import {LTby} from "@bloom-v2/token/LTby.sol";
+import {BTby} from "@bloom-v2/token/BTby.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 abstract contract BloomTestSetup is Test {
     BloomFactory internal bloomFactory;
     BloomPool internal bloomPool;
+    LTby internal ltby;
+    BTby internal btby;
     MockERC20 internal stable;
     MockERC20 internal billToken;
 
@@ -43,6 +47,18 @@ abstract contract BloomTestSetup is Test {
             address(billToken),
             initialLeverageBps
         );
+        vm.stopPrank();
+
+        ltby = LTby(bloomPool.lTby());
+        btby = BTby(bloomPool.bTby());
+        assertNotEq(address(bloomPool), address(0));
+    }
+
+    function _createLendOrder(address account, uint256 amount) internal {
+        stable.mint(account, amount);
+        vm.startPrank(account);
+        stable.approve(address(bloomPool), amount);
+        bloomPool.lendOrder(amount);
         vm.stopPrank();
     }
 }

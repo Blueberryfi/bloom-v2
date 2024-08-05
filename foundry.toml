@@ -8,3 +8,9 @@ remappings = [
     "@bloom-v2/=src/",
     "@solady/=lib/solady/src/",
 ]
+
+[fuzz]
+runs = 10000
+
+gas_reports = ["*"]
+gas_reports_ignore = ["MockERC20", "BloomTestSetup"]
