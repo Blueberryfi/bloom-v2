@@ -60,6 +60,10 @@ contract LTby is ERC1155 {
         return _decimals;
     }
 
+    function bloomPool() external view returns (address) {
+        return _bloomPool;
+    }
+
     function uri(
         uint256 id
     ) public view virtual override returns (string memory) {

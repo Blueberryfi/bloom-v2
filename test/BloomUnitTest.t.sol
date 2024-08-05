@@ -14,6 +14,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
+import {BloomPool} from "@bloom-v2/BloomPool.sol";
 import {BloomTestSetup} from "./BloomTestSetup.t.sol";
 
 contract BloomUnitTest is BloomTestSetup {
@@ -23,6 +24,16 @@ contract BloomUnitTest is BloomTestSetup {
 
     function setUp() public override {
         super.setUp();
+    }
+
+    function testDeployment() public {
+        BloomPool newPool = new BloomPool(
+            address(stable),
+            address(billToken),
+            initialLeverageBps,
+            owner
+        );
+        assertNotEq(address(newPool), address(0));
     }
 
     function testAsset() public view {
