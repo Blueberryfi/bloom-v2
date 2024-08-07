@@ -15,7 +15,6 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 import {BTby} from "@bloom-v2/token/BTby.sol";
-import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 
 contract BTbyUnitTest is BloomTestSetup {
     address[] private addresses;

@@ -9,7 +9,7 @@
 */
 pragma solidity ^0.8.26;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
 import {BloomFactory} from "@bloom-v2/BloomFactory.sol";
 import {BloomPool} from "@bloom-v2/BloomPool.sol";

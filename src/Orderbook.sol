@@ -15,9 +15,8 @@ import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
-import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
-
 import {PoolStorage} from "@bloom-v2/PoolStorage.sol";
+import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 
 /**
  * @title Orderbook
@@ -43,6 +42,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     /*///////////////////////////////////////////////////////////////
                               Modifier    
     //////////////////////////////////////////////////////////////*/
+
     modifier onlyBTby() {
         require(msg.sender == address(_bTby), Errors.NotBloom());
         _;
@@ -77,10 +77,10 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
 
     /// @inheritdoc IOrderbook
     function fillOrder(
-        address order,
+        address account,
         uint256 amount
     ) external KycBorrower returns (uint256 filled) {
-        filled = _fillOrder(order, amount);
+        filled = _fillOrder(account, amount);
         _depositBorrower(filled);
     }
 
@@ -99,6 +99,11 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         _depositBorrower(filled);
     }
 
+    /**
+     * @notice Fills an order with a specified amount of underlying assets
+     * @param account The address of the order to fill
+     * @param amount Amount of underlying assets of the order to fill
+     */
     function _fillOrder(
         address account,
         uint256 amount
@@ -120,6 +125,28 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         emit OrderFilled(account, msg.sender, _leverage, filled);
     }
 
+    /**
+     * @notice Deposits the leveraged matched amount of underlying assets to the borrower
+     * @dev The borrower supplies less than the matched amount of underlying assets based on the leverage
+     * @param amountMatched Amount of underlying assets matched by the borrower
+     */
+    function _depositBorrower(uint256 amountMatched) internal {
+        uint256 borrowAmount = amountMatched.divWadUp(_leverage);
+
+        require(borrowAmount >= 1e6, Errors.InvalidMatchSize());
+        require(
+            IERC20(_asset).balanceOf(msg.sender) >= borrowAmount,
+            Errors.InsufficientBalance()
+        );
+
+        uint256 amountMinted = _bTby.mint(msg.sender, borrowAmount);
+        IERC20(_asset).safeTransferFrom(
+            msg.sender,
+            address(this),
+            amountMinted
+        );
+    }
+
     /// @inheritdoc IOrderbook
     function killOrder(uint256 id, uint256 amount) external {
         uint256 orderDepth = _lTby.balanceOf(msg.sender, id);
@@ -129,6 +156,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         );
         require(amount <= orderDepth, Errors.InsufficientDepth());
 
+        // if the order is already matched we have to account for the borrower's who filled the order.
         if (id == uint256(OrderType.MATCHED)) {
             (
                 address[] memory borrowers,
@@ -144,6 +172,12 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         emit OrderKilled(msg.sender, id, amount);
     }
 
+    /**
+     * @notice Closes the matched order for the user
+     * @param amount The amount of underlying assets to close the matched order
+     * @return borrowers The borrowers who's match was removed.
+     * @return removedAmounts The amount for each borrower that was removed.
+     */
     function _closeMatchOrder(
         uint256 amount
     )
@@ -171,36 +205,27 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         }
     }
 
+    /**
+     * @notice Transfer asset to an address
+     * @dev Only the borrower TBY can call this function
+     * @param to Address that is receiving the asset
+     * @param amount Amount of asset to transfer
+     */
+    function transferAsset(address to, uint256 amount) external onlyBTby {
+        IERC20(_asset).safeTransfer(to, amount);
+    }
+
     /// @inheritdoc IOrderbook
     function leverage() external view override returns (uint256) {
         return _leverage;
     }
 
-    function transferAsset(address to, uint256 amount) external onlyBTby {
-        IERC20(_asset).safeTransfer(to, amount);
-    }
-
-    function _depositBorrower(uint256 amountMatched) internal {
-        uint256 borrowAmount = amountMatched.divWadUp(_leverage);
-
-        require(borrowAmount >= 1e6, Errors.InvalidMatchSize());
-        require(
-            IERC20(_asset).balanceOf(msg.sender) >= borrowAmount,
-            Errors.InsufficientBalance()
-        );
-
-        uint256 amountMinted = _bTby.mint(msg.sender, borrowAmount);
-        IERC20(_asset).safeTransferFrom(
-            msg.sender,
-            address(this),
-            amountMinted
-        );
-    }
-
+    /// @inheritdoc IOrderbook
     function openDepth() external view returns (uint256) {
         return _openDepth;
     }
 
+    /// @inheritdoc IOrderbook
     function matchedDepth() external view returns (uint256) {
         return _matchedDepth;
     }

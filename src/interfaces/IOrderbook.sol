@@ -87,24 +87,24 @@ interface IOrderbook {
     /**
      * @notice Allows borrowers to fill lend orders with a specified amount of underlying assets.
      * @dev Borrowers can only fill orders if they have passed KYC verification.
-     * @param order Address of the lend order to fill.
+     * @param account Address of the lend order to fill.
      * @param amount The maximum amount of underlying assets to fill orders with.
      * @return filled The total amount of underlying assets filled.
      */
     function fillOrder(
-        address order,
+        address account,
         uint256 amount
     ) external returns (uint256 filled);
 
     /**
      * @notice Allows borrowers to fill lend orders with a specified amount of underlying assets.
      * @dev Borrowers can only fill orders if they have passed KYC verification.
-     * @param orders An array of order addresses to fill.
+     * @param accounts An array of order addresses to fill.
      * @param amount The maximum amount of underlying assets to fill orders with.
      * @return filled The total amount of underlying assets filled.
      */
     function fillOrders(
-        address[] calldata orders,
+        address[] calldata accounts,
         uint256 amount
     ) external returns (uint256 filled);
 
@@ -117,4 +117,10 @@ interface IOrderbook {
 
     /// @notice Returns the current leverage value for the borrower scaled to 1e4.
     function leverage() external view returns (uint256);
+
+    /// @notice Returns the current total depth of open orders.
+    function openDepth() external view returns (uint256);
+
+    /// @notice Returns the current total depth of matched orders.
+    function matchedDepth() external view returns (uint256);
 }

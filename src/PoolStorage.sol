@@ -87,10 +87,12 @@ abstract contract PoolStorage is IPoolStorage {
                             Functions    
     //////////////////////////////////////////////////////////////*/
 
+    /// @inheritdoc IPoolStorage
     function lTby() external view returns (address) {
         return address(_lTby);
     }
 
+    /// @inheritdoc IPoolStorage
     function bTby() external view returns (address) {
         return address(_bTby);
     }

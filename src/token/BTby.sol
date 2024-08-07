@@ -10,8 +10,9 @@
 pragma solidity ^0.8.26;
 
 import {ERC20} from "@solady/tokens/ERC20.sol";
-import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
+
+import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {BloomPool} from "@bloom-v2/BloomPool.sol";
 import {IBTBY} from "@bloom-v2/interfaces/IBTBY.sol";
@@ -58,6 +59,7 @@ contract BTby is IBTBY, ERC20 {
                                 Functions
     //////////////////////////////////////////////////////////////*/
 
+    /// @inheritdoc IBTBY
     function mint(
         address account,
         uint256 amount
@@ -72,49 +74,25 @@ contract BTby is IBTBY, ERC20 {
         return amount;
     }
 
+    /// @inheritdoc IBTBY
     function burn(address account, uint256 amount) external onlyBloom {
         _burn(account, amount);
     }
 
-    function transfer(
-        address /*to*/,
-        uint256 /*amount*/
-    ) public pure override returns (bool) {
-        _revertTransfer();
-    }
-
-    function transferFrom(
-        address /*from*/,
-        address /*to*/,
-        uint256 /*amount*/
-    ) public pure override returns (bool) {
-        _revertTransfer();
-    }
-
-    function _revertTransfer() private pure {
-        revert Errors.KYCTokenNotTransferable();
-    }
-
-    function bloomPool() external view returns (address) {
-        return _bloomPool;
-    }
-
-    function decimals() public view override returns (uint8) {
-        return _decimals;
-    }
-
+    /// @inheritdoc IBTBY
     function increaseIdleCapital(
-        address[] memory account,
-        uint256[] memory amount
+        address[] memory accounts,
+        uint256[] memory amounts
     ) external onlyBloom {
-        uint256 length = account.length;
-        require(length == amount.length, Errors.ArrayMismatch());
+        uint256 length = accounts.length;
+        require(length == amounts.length, Errors.ArrayMismatch());
         for (uint256 i = 0; i < length; i++) {
-            _idleCapital[account[i]] += amount[i];
-            emit IdleCapitalIncreased(account[i], amount[i]);
+            _idleCapital[accounts[i]] += amounts[i];
+            emit IdleCapitalIncreased(accounts[i], amounts[i]);
         }
     }
 
+    /// @inheritdoc IBTBY
     function withdrawIdleCapital(uint256 amount) external {
         address account = msg.sender;
         require(amount > 0, Errors.ZeroAmount());
@@ -134,15 +112,50 @@ contract BTby is IBTBY, ERC20 {
         emit IdleCapitalWithdrawn(account, amount);
     }
 
+    /// @inheritdoc IBTBY
     function idleCapital(address account) public view returns (uint256) {
         return _idleCapital[account];
     }
 
+    /// @inheritdoc IBTBY
+    function bloomPool() external view returns (address) {
+        return _bloomPool;
+    }
+
+    /// @inheritdoc ERC20
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
+
+    /// @inheritdoc ERC20
     function name() public pure override returns (string memory) {
         return "Borrower TBY";
     }
 
+    /// @inheritdoc ERC20
     function symbol() public view virtual override returns (string memory) {
         return "bTBY";
+    }
+
+    /// @inheritdoc ERC20
+    function transfer(
+        address /*to*/,
+        uint256 /*amount*/
+    ) public pure override returns (bool) {
+        _revertTransfer();
+    }
+
+    /// @inheritdoc ERC20
+    function transferFrom(
+        address /*from*/,
+        address /*to*/,
+        uint256 /*amount*/
+    ) public pure override returns (bool) {
+        _revertTransfer();
+    }
+
+    /// @notice Reverts all transfers.
+    function _revertTransfer() private pure {
+        revert Errors.KYCTokenNotTransferable();
     }
 }

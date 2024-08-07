@@ -54,6 +54,7 @@ library BloomErrors {
     /// @notice Emitted when a user tries to call a function only for the LTby token.
     error NotLTBY();
 
+    /// @notice Emitted when a user tries to kill an order that is not open or matched.
     error InvalidOrderType();
 
     /*///////////////////////////////////////////////////////////////

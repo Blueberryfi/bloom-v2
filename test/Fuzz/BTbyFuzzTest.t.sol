@@ -14,10 +14,8 @@ import {Test} from "forge-std/Test.sol";
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {BloomTestSetup} from "../BloomTestSetup.t.sol";
-import {LTby} from "@bloom-v2/token/LTby.sol";
 
 import {IBTBY} from "@bloom-v2/interfaces/IBTBY.sol";
-import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 
 contract BTbyFuzzTest is BloomTestSetup {
     address[] private addresses;
