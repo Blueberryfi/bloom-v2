@@ -33,8 +33,7 @@ abstract contract BloomTestSetup is Test {
     address internal marketMaker = makeAddr("marketMaker");
     address internal rando = makeAddr("rando");
 
-    uint16 internal initialLeverageBps = 200;
-    uint16 internal constant BPS = 10000;
+    uint256 internal initialLeverage = 50e18;
 
     function setUp() public virtual {
         bloomFactory = new BloomFactory(owner);
@@ -45,7 +44,7 @@ abstract contract BloomTestSetup is Test {
         bloomPool = bloomFactory.createBloomPool(
             address(stable),
             address(billToken),
-            initialLeverageBps
+            initialLeverage
         );
         vm.stopPrank();
 

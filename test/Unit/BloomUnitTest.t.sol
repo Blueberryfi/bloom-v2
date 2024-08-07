@@ -15,7 +15,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {BloomPool} from "@bloom-v2/BloomPool.sol";
-import {BloomTestSetup} from "./BloomTestSetup.t.sol";
+import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 
 contract BloomUnitTest is BloomTestSetup {
     // Events
@@ -30,7 +30,7 @@ contract BloomUnitTest is BloomTestSetup {
         BloomPool newPool = new BloomPool(
             address(stable),
             address(billToken),
-            initialLeverageBps,
+            initialLeverage,
             owner
         );
         assertNotEq(address(newPool), address(0));
@@ -52,8 +52,8 @@ contract BloomUnitTest is BloomTestSetup {
         assertEq(bloomPool.rwaDecimals(), billToken.decimals());
     }
 
-    function test_LeverageBps() public view {
-        assertEq(bloomPool.leverageBps(), initialLeverageBps);
+    function test_Leverage() public view {
+        assertEq(bloomPool.leverage(), initialLeverage);
     }
 
     function test_FactoryCheck() public view {
@@ -122,8 +122,8 @@ contract BloomUnitTest is BloomTestSetup {
                 address(this)
             )
         );
-        bloomPool.setLeverageBps(200);
-        assertEq(bloomPool.leverageBps(), initialLeverageBps);
+        bloomPool.setLeverage(0.025e18);
+        assertEq(bloomPool.leverage(), initialLeverage);
     }
 
     function testLendOrderZero() public {
@@ -158,5 +158,17 @@ contract BloomUnitTest is BloomTestSetup {
         vm.expectRevert(Errors.KYCFailed.selector);
         bloomPool.fillOrder(bob, 100e6);
         assertEq(bloomPool.matchedDepth(), 0);
+    }
+
+    function testFillOrderLowBalance() public {
+        _createLendOrder(alice, 100e6);
+
+        vm.startPrank(owner);
+        bloomPool.whitelistBorrower(borrower);
+
+        // Should revert if the borrower has insufficient balance
+        vm.startPrank(borrower);
+        vm.expectRevert(Errors.InsufficientBalance.selector);
+        bloomPool.fillOrder(alice, 100e6);
     }
 }

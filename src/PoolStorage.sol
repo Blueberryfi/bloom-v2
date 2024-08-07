@@ -44,8 +44,8 @@ abstract contract PoolStorage is IPoolStorage {
     /// @notice Decimals of the RWA token of the Pool.
     uint8 internal immutable _rwaDecimals;
 
-    /// @notice Mapping of the borrowers leverage on matching orders.
-    uint16 internal _leverageBps;
+    /// @notice Leverage value for the borrower. scaled by 1e18 (50x leverage == 2% == 0.02e18)
+    uint256 internal _leverage;
 
     /// @notice Mapping of KYCed borrowers.
     mapping(address => bool) internal _borrowers;
@@ -58,12 +58,12 @@ abstract contract PoolStorage is IPoolStorage {
     //////////////////////////////////////////////////////////////*/
 
     modifier KycBorrower() {
-        require(_borrowers[msg.sender], Errors.KYCFailed());
+        require(isKYCedBorrower(msg.sender), Errors.KYCFailed());
         _;
     }
 
     modifier KycMarketMaker() {
-        require(_marketMakers[msg.sender], Errors.KYCFailed());
+        require(isKYCedMarketMaker(msg.sender), Errors.KYCFailed());
         _;
     }
 
@@ -118,14 +118,14 @@ abstract contract PoolStorage is IPoolStorage {
     /// @inheritdoc IPoolStorage
     function isKYCedBorrower(
         address account
-    ) external view override returns (bool) {
+    ) public view override returns (bool) {
         return _borrowers[account];
     }
 
     /// @inheritdoc IPoolStorage
     function isKYCedMarketMaker(
         address account
-    ) external view override returns (bool) {
+    ) public view override returns (bool) {
         return _marketMakers[account];
     }
 }

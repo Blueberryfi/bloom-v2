@@ -41,15 +41,23 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     mapping(address => MatchOrder[]) private _userMatchedOrders;
 
     /*///////////////////////////////////////////////////////////////
+                              Modifier    
+    //////////////////////////////////////////////////////////////*/
+    modifier onlyBTby() {
+        require(msg.sender == address(_bTby), Errors.NotBloom());
+        _;
+    }
+
+    /*///////////////////////////////////////////////////////////////
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
     constructor(
         address asset_,
         address rwa_,
-        uint16 initLeverageBps
+        uint256 initLeverage
     ) PoolStorage(asset_, rwa_) {
-        _leverageBps = initLeverageBps;
+        _leverage = initLeverage;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -86,6 +94,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
             uint256 size = _fillOrder(accounts[i], amount);
             amount -= size;
             filled += size;
+            if (amount == 0) break;
         }
         _depositBorrower(filled);
     }
@@ -105,10 +114,10 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
 
         _lTby.stage(account, filled);
         _userMatchedOrders[account].push(
-            MatchOrder(msg.sender, _leverageBps, amount)
+            MatchOrder(msg.sender, _leverage, amount)
         );
 
-        emit OrderFilled(account, msg.sender, _leverageBps, filled);
+        emit OrderFilled(account, msg.sender, _leverage, filled);
     }
 
     /// @inheritdoc IOrderbook
@@ -144,8 +153,8 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         MatchOrder[] storage matches = _userMatchedOrders[msg.sender];
         uint256 remainingAmount = amount;
 
-        uint256 length = matches.length;
-        for (uint256 i = length - 1; i == 0; --i) {
+        uint256 startIndex = matches.length - 1;
+        for (uint256 i = startIndex; i == 0; --i) {
             uint256 matchedAmount = Math.min(
                 remainingAmount,
                 matches[i].amount
@@ -163,16 +172,23 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function leverageBps() external view override returns (uint16) {
-        return _leverageBps;
+    function leverage() external view override returns (uint256) {
+        return _leverage;
+    }
+
+    function transferAsset(address to, uint256 amount) external onlyBTby {
+        IERC20(_asset).safeTransfer(to, amount);
     }
 
     function _depositBorrower(uint256 amountMatched) internal {
-        uint256 borrowAmount = (amountMatched * _leverageBps) / 10000;
+        uint256 borrowAmount = amountMatched.divWadUp(_leverage);
+
+        require(borrowAmount >= 1e6, Errors.InvalidMatchSize());
         require(
             IERC20(_asset).balanceOf(msg.sender) >= borrowAmount,
             Errors.InsufficientBalance()
         );
+
         uint256 amountMinted = _bTby.mint(msg.sender, borrowAmount);
         IERC20(_asset).safeTransferFrom(
             msg.sender,

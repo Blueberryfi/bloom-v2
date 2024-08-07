@@ -62,8 +62,7 @@ contract BTby is IBTBY, ERC20 {
         address account,
         uint256 amount
     ) external onlyBloom returns (uint256) {
-        uint256 idleCapital = _idleCapital[account];
-        uint256 idleUsed = Math.min(idleCapital, amount);
+        uint256 idleUsed = Math.min(idleCapital(account), amount);
         if (idleUsed > 0) {
             _idleCapital[account] -= idleUsed;
             amount -= idleUsed;
@@ -96,6 +95,10 @@ contract BTby is IBTBY, ERC20 {
         revert Errors.KYCTokenNotTransferable();
     }
 
+    function bloomPool() external view returns (address) {
+        return _bloomPool;
+    }
+
     function decimals() public view override returns (uint8) {
         return _decimals;
     }
@@ -112,12 +115,27 @@ contract BTby is IBTBY, ERC20 {
         }
     }
 
-    function withdrawIdleCapital(address account) external {
-        uint256 amount = _idleCapital[account];
+    function withdrawIdleCapital(uint256 amount) external {
+        address account = msg.sender;
         require(amount > 0, Errors.ZeroAmount());
+
+        uint256 idleFunds = _idleCapital[account];
+
+        if (amount == type(uint256).max) {
+            amount = idleFunds;
+        } else {
+            require(idleFunds >= amount, Errors.InsufficientBalance());
+        }
+
         _idleCapital[account] -= amount;
         _burn(account, amount);
+        BloomPool(_bloomPool).transferAsset(account, amount);
+
         emit IdleCapitalWithdrawn(account, amount);
+    }
+
+    function idleCapital(address account) public view returns (uint256) {
+        return _idleCapital[account];
     }
 
     function name() public pure override returns (string memory) {

@@ -13,7 +13,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
-import {BloomTestSetup} from "./BloomTestSetup.t.sol";
+import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 import {LTby} from "@bloom-v2/token/LTby.sol";
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 

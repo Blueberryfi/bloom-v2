@@ -34,7 +34,7 @@ interface IOrderbook {
     event OrderFilled(
         address indexed account,
         address indexed borrower,
-        uint16 leverage,
+        uint256 leverage,
         uint256 amount
     );
 
@@ -57,7 +57,7 @@ interface IOrderbook {
      */
     struct MatchOrder {
         address borrower;
-        uint16 leverage;
+        uint256 leverage;
         uint256 amount;
     }
 
@@ -115,6 +115,6 @@ interface IOrderbook {
      */
     function killOrder(uint256 orderId, uint256 amount) external;
 
-    /// @notice Returns the current leverage value for the borrower
-    function leverageBps() external view returns (uint16);
+    /// @notice Returns the current leverage value for the borrower scaled to 1e4.
+    function leverage() external view returns (uint256);
 }

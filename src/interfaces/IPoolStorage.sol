@@ -26,9 +26,9 @@ interface IPoolStorage {
 
     /**
      * @notice Emitted when the borrowers leverage amount is updated
-     * @param leverageBps The updated leverage amount for the borrower.
+     * @param leverage The updated leverage amount for the borrower.
      */
-    event LeverageBpsSet(uint256 leverageBps);
+    event LeverageSet(uint256 leverage);
 
     /*///////////////////////////////////////////////////////////////
                               Functions

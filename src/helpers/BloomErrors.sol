@@ -30,6 +30,10 @@ library BloomErrors {
     /// @notice Emitted the admin inputs a leverage value that is not within the bounds. (0, 100)
     error InvalidLeverage();
 
+    /// @notice Emitted when a borrower matches an order or orders that are too small to be filled.
+    ///         Amount post leverage must be greater than 0.
+    error InvalidMatchSize();
+
     /*///////////////////////////////////////////////////////////////
                             KYC Errors    
     //////////////////////////////////////////////////////////////*/
