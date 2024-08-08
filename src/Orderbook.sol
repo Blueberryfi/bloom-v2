@@ -195,8 +195,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         borrowers = new address[](matchLength);
         removedAmounts = new uint256[](matchLength);
 
-        uint256 index = matchLength - 1;
-        while (index >= 0) {
+        uint256 matchesRemoved;
+        for (uint256 i = matchLength; i != 0; --i) {
+            uint256 index = i - 1;
             uint256 matchedAmount = Math.min(
                 remainingAmount,
                 matches[index].amount
@@ -206,21 +207,20 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
 
             borrowers[index] = matches[index].borrower;
             removedAmounts[index] = matchedAmount.divWadUp(leverageValue);
+            matchesRemoved++;
 
             if (matches[index].amount == 0) {
                 matches.pop();
             }
 
-            if (index == 0 || remainingAmount == 0) {
+            if (remainingAmount == 0) {
                 break;
             }
-            index--;
         }
 
         // Reduce the length of the borrowers and removedAmounts arrays if not all orders were removed
-        uint256 ordersRemoved = matchLength - index;
-        if (ordersRemoved != matchLength) {
-            uint256 difference = matchLength - ordersRemoved;
+        if (matchesRemoved != matchLength) {
+            uint256 difference = matchLength - matchesRemoved;
             assembly {
                 mstore(borrowers, sub(mload(borrowers), difference))
                 mstore(removedAmounts, sub(mload(removedAmounts), difference))
