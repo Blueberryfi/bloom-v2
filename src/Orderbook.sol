@@ -148,7 +148,10 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function killOrder(uint256 id, uint256 amount) external {
+    function killOrder(
+        uint256 id,
+        uint256 amount
+    ) external returns (uint256 amountKilled) {
         uint256 orderDepth = _lTby.balanceOf(msg.sender, id);
         require(
             id == uint256(OrderType.OPEN) || id == uint256(OrderType.MATCHED),
@@ -157,21 +160,27 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         require(amount <= orderDepth, Errors.InsufficientDepth());
 
         // if the order is already matched we have to account for the borrower's who filled the order.
+        // If you kill a match order and there are multiple borrowers, the order will be closed in a LIFO manner.
+        // For each borrow the full amount that was matched must be removed from the order.
+        // In the event that the match is not fully removed, that match will not be removed.
         if (id == uint256(OrderType.MATCHED)) {
             (
                 address[] memory borrowers,
-                uint256[] memory removedAmounts
+                uint256[] memory removedAmounts,
+                uint256 removedAmount
             ) = _closeMatchOrder(amount);
-            _matchedDepth -= amount;
+            amountKilled = removedAmount;
+            _matchedDepth -= amountKilled;
             _bTby.increaseIdleCapital(borrowers, removedAmounts);
         } else {
-            _openDepth -= amount;
+            amountKilled = amount;
+            _openDepth -= amountKilled;
         }
 
-        _lTby.close(msg.sender, id, amount);
+        _lTby.close(msg.sender, id, amountKilled);
 
-        IERC20(_asset).safeTransfer(msg.sender, amount);
-        emit OrderKilled(msg.sender, id, amount);
+        IERC20(_asset).safeTransfer(msg.sender, amountKilled);
+        emit OrderKilled(msg.sender, id, amountKilled);
     }
 
     /**
@@ -185,11 +194,14 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         uint256 amount
     )
         internal
-        returns (address[] memory borrowers, uint256[] memory removedAmounts)
+        returns (
+            address[] memory borrowers,
+            uint256[] memory removedAmounts,
+            uint256 totalRemoved
+        )
     {
         MatchOrder[] storage matches = _userMatchedOrders[msg.sender];
         uint256 remainingAmount = amount;
-        uint256 leverageValue = _leverage;
 
         uint256 matchLength = matches.length;
         borrowers = new address[](matchLength);
@@ -198,22 +210,19 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         uint256 matchesRemoved;
         for (uint256 i = matchLength; i != 0; --i) {
             uint256 index = i - 1;
-            uint256 matchedAmount = Math.min(
-                remainingAmount,
-                matches[index].amount
-            );
-            matches[index].amount -= matchedAmount;
-            remainingAmount -= matchedAmount;
 
-            borrowers[index] = matches[index].borrower;
-            removedAmounts[index] = matchedAmount.divWadUp(leverageValue);
-            matchesRemoved++;
+            if (remainingAmount >= matches[index].amount) {
+                remainingAmount -= matches[index].amount;
+                totalRemoved += matches[index].amount;
 
-            if (matches[index].amount == 0) {
+                borrowers[matchesRemoved] = matches[index].borrower;
+                removedAmounts[matchesRemoved] = matches[index].amount.divWadUp(
+                    matches[index].leverage
+                );
+
+                matchesRemoved++;
                 matches.pop();
-            }
-
-            if (remainingAmount == 0) {
+            } else {
                 break;
             }
         }

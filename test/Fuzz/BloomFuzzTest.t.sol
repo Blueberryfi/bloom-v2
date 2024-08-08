@@ -17,11 +17,11 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {IPoolStorage} from "@bloom-v2/interfaces/IPoolStorage.sol";
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
-import "forge-std/console2.sol";
 
 contract BloomFuzzTest is BloomTestSetup {
     using FpMath for uint256;
     address[] public lenders;
+    address[] public borrowers;
     address[] public filledOrders;
     uint256[] public filledAmounts;
 
@@ -135,6 +135,16 @@ contract BloomFuzzTest is BloomTestSetup {
             bloomPool.openDepth() + bloomPool.matchedDepth(),
             preFillDepth
         );
+
+        // Verify the matched order struct
+        assertEq(bloomPool.matchOrderCount(alice), 1);
+        IOrderbook.MatchOrder memory aliceMatch = bloomPool.matchOrder(
+            alice,
+            0
+        );
+        assertEq(aliceMatch.borrower, borrower);
+        assertEq(aliceMatch.leverage, initialLeverage);
+        assertEq(aliceMatch.amount, expectedFillAmount);
     }
 
     function testFuzz_MultiOrderFill(
@@ -250,7 +260,7 @@ contract BloomFuzzTest is BloomTestSetup {
             uint256(1e6).mulWadUp(initialLeverage),
             500_000_000e6
         );
-        vm.assume(orderSize > killSize);
+        vm.assume(orderSize >= killSize);
 
         // Open order
         _createLendOrder(alice, orderSize);
@@ -262,19 +272,114 @@ contract BloomFuzzTest is BloomTestSetup {
         stable.approve(address(bloomPool), borrowerAmount);
         bloomPool.fillOrder(alice, orderSize);
 
+        // Amount killed is always going to be equal the order size on a single matched order.
+        uint256 amountKilled = orderSize > killSize ? 0 : killSize;
+
         // Kill the matched order
         vm.startPrank(alice);
         vm.expectEmit(true, false, false, true);
-        emit IOrderbook.OrderKilled(alice, 1, killSize);
+        emit IOrderbook.OrderKilled(alice, 1, amountKilled);
         bloomPool.killOrder(1, killSize);
 
-        assertEq(ltby.matchedBalance(alice), orderSize - killSize);
-        assertEq(bloomPool.matchedDepth(), orderSize - killSize);
-        assertEq(stable.balanceOf(alice), killSize);
+        assertEq(ltby.matchedBalance(alice), orderSize - amountKilled);
+        assertEq(bloomPool.matchedDepth(), orderSize - amountKilled);
+        assertEq(stable.balanceOf(alice), amountKilled);
         assertEq(btby.balanceOf(borrower), borrowerAmount);
         assertEq(
             btby.idleCapital(borrower),
-            killSize.divWadUp(initialLeverage)
+            amountKilled.divWadUp(initialLeverage)
         );
+    }
+
+    function testFuzz_KillMultiOrder(
+        uint256[3] memory orders,
+        uint256 killAmount
+    ) public {
+        orders[0] = bound(orders[0], 100e6, 100_000_000e6);
+        orders[1] = bound(orders[1], 100e6, 100_000_000e6);
+        orders[2] = bound(orders[2], 100e6, 100_000_000e6);
+        killAmount = bound(killAmount, 1e6, 300_000_000e6);
+        vm.assume(orders[0] + orders[1] + orders[2] >= killAmount);
+        vm.assume(killAmount >= orders[0]);
+
+        address borrower2 = makeAddr("borrower2");
+        address borrower3 = makeAddr("borrower3");
+
+        vm.startPrank(owner);
+        bloomPool.whitelistBorrower(borrower2);
+        bloomPool.whitelistBorrower(borrower3);
+
+        stable.mint(borrower, orders[0].divWadUp(initialLeverage));
+        stable.mint(borrower2, orders[1].divWadUp(initialLeverage));
+        stable.mint(borrower3, orders[2].divWadUp(initialLeverage));
+
+        // Create 3 filled orders with alice w/ 3 different borrowers
+        _createLendOrder(alice, orders[0]);
+        vm.startPrank(borrower);
+        stable.approve(address(bloomPool), orders[0].divWadUp(initialLeverage));
+        bloomPool.fillOrder(alice, orders[0]);
+        _createLendOrder(alice, orders[1]);
+        vm.startPrank(borrower2);
+        stable.approve(address(bloomPool), orders[1].divWadUp(initialLeverage));
+        bloomPool.fillOrder(alice, orders[1]);
+        _createLendOrder(alice, orders[2]);
+        vm.startPrank(borrower3);
+        stable.approve(address(bloomPool), orders[2].divWadUp(initialLeverage));
+        bloomPool.fillOrder(alice, orders[2]);
+
+        // Kill the orders
+        vm.startPrank(alice);
+        uint256 amountKilled = bloomPool.killOrder(1, killAmount);
+
+        uint256 borrowersKilled;
+        if (amountKilled >= orders[2] && amountKilled < orders[2] + orders[1]) {
+            borrowersKilled = 1;
+        } else if (
+            amountKilled >= orders[2] + orders[1] &&
+            amountKilled < orders[0] + orders[1] + orders[2]
+        ) {
+            borrowersKilled = 2;
+        } else if (amountKilled >= orders[0] + orders[1] + orders[2]) {
+            borrowersKilled = 3;
+        }
+
+        assertEq(
+            ltby.matchedBalance(alice),
+            orders[0] + orders[1] + orders[2] - amountKilled
+        );
+        assertEq(
+            bloomPool.matchedDepth(),
+            orders[0] + orders[1] + orders[2] - amountKilled
+        );
+        assertEq(stable.balanceOf(alice), amountKilled);
+
+        if (borrowersKilled == 1) {
+            assertEq(
+                btby.idleCapital(borrower3),
+                orders[2].divWadUp(initialLeverage)
+            );
+        } else if (borrowersKilled == 2) {
+            assertEq(
+                btby.idleCapital(borrower3),
+                orders[2].divWadUp(initialLeverage)
+            );
+            assertEq(
+                btby.idleCapital(borrower2),
+                orders[1].divWadUp(initialLeverage)
+            );
+        } else if (borrowersKilled == 3) {
+            assertEq(
+                btby.idleCapital(borrower3),
+                orders[2].divWadUp(initialLeverage)
+            );
+            assertEq(
+                btby.idleCapital(borrower2),
+                orders[1].divWadUp(initialLeverage)
+            );
+            assertEq(
+                btby.idleCapital(borrower),
+                orders[0].divWadUp(initialLeverage)
+            );
+        }
     }
 }

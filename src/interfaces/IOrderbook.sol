@@ -110,10 +110,15 @@ interface IOrderbook {
 
     /**
      * @notice Allows users to cancel their lend orders and withdraw their underlying assets.
+     * @dev If an order is matched by multiple borrowers, borrower matches must be closed fully in a LIFO manner.
      * @param orderId The unique identifier of the lend order.
      * @param amount The amount of underlying assets to remove from your order.
+     * @return amountKilled The total amount of underlying assets removed from the order.
      */
-    function killOrder(uint256 orderId, uint256 amount) external;
+    function killOrder(
+        uint256 orderId,
+        uint256 amount
+    ) external returns (uint256 amountKilled);
 
     /// @notice Returns the current leverage value for the borrower scaled to 1e4.
     function leverage() external view returns (uint256);
