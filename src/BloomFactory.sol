@@ -10,7 +10,7 @@
 pragma solidity ^0.8.26;
 
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-
+import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {BloomPool} from "@bloom-v2/BloomPool.sol";
 
 /**
@@ -29,7 +29,9 @@ contract BloomFactory is Ownable2Step {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address owner_) Ownable(owner_) {}
+    constructor(address owner_) Ownable(owner_) {
+        require(owner_ != address(0), Errors.ZeroAddress());
+    }
 
     /*///////////////////////////////////////////////////////////////
                                 Functions    

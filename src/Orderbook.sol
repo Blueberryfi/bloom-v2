@@ -65,8 +65,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         require(amount > 0, Errors.ZeroAmount());
 
         _openDepth += amount;
-        IERC20(_asset).safeTransferFrom(msg.sender, address(this), amount);
         _lTby.open(msg.sender, amount);
+
+        IERC20(_asset).safeTransferFrom(msg.sender, address(this), amount);
 
         emit OrderCreated(msg.sender, amount);
     }
@@ -104,8 +105,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         _openDepth -= filled;
         _matchedDepth += filled;
 
-        _lTby.stage(account, filled);
         _userMatchedOrders[account].push(MatchOrder(msg.sender, _leverage, amount));
+
+        _lTby.stage(account, filled);
 
         emit OrderFilled(account, msg.sender, _leverage, filled);
     }

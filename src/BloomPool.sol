@@ -28,7 +28,10 @@ contract BloomPool is Orderbook, Ownable2Step {
     constructor(address asset_, address rwa_, uint256 initLeverage, address owner_)
         Ownable(owner_)
         Orderbook(asset_, rwa_, initLeverage)
-    {}
+    {
+        require(owner_ != address(0), Errors.ZeroAddress());
+        require(initLeverage >= 1e18 && initLeverage < 100e18, Errors.InvalidLeverage());
+    }
 
     /*///////////////////////////////////////////////////////////////
                                 Functions    
