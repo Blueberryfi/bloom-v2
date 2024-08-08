@@ -46,11 +46,7 @@ contract LTbyFuzzTest is BloomTestSetup {
         assertEq(ltby.openBalance(alice), openAmount - closeAmount);
     }
 
-    function testFuzzMatchClose(
-        uint256 openAmount,
-        uint256 matchAmount,
-        uint256 closeAmount
-    ) public {
+    function testFuzzMatchClose(uint256 openAmount, uint256 matchAmount, uint256 closeAmount) public {
         vm.assume(openAmount >= matchAmount);
         vm.assume(matchAmount >= closeAmount);
 

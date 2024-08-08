@@ -41,11 +41,7 @@ abstract contract BloomTestSetup is Test {
         billToken = new MockERC20("Mock T-Bill Token", "bIb01", 18);
 
         vm.prank(owner);
-        bloomPool = bloomFactory.createBloomPool(
-            address(stable),
-            address(billToken),
-            initialLeverage
-        );
+        bloomPool = bloomFactory.createBloomPool(address(stable), address(billToken), initialLeverage);
         vm.stopPrank();
 
         ltby = LTby(bloomPool.lTby());

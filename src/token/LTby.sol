@@ -59,11 +59,7 @@ contract LTby is ILTBY, ERC1155 {
     }
 
     /// @inheritdoc ILTBY
-    function close(
-        address account,
-        uint256 id,
-        uint256 amount
-    ) external onlyBloom {
+    function close(address account, uint256 id, uint256 amount) external onlyBloom {
         _burn(account, id, amount);
     }
 
@@ -94,9 +90,7 @@ contract LTby is ILTBY, ERC1155 {
     }
 
     /// @inheritdoc ILTBY
-    function totalBalance(
-        address account
-    ) external view returns (uint256 amount) {
+    function totalBalance(address account) external view returns (uint256 amount) {
         amount += openBalance(account);
         amount += matchedBalance(account);
         amount += liveBalance(account);
@@ -123,9 +117,7 @@ contract LTby is ILTBY, ERC1155 {
     }
 
     /// @inheritdoc ERC1155
-    function uri(
-        uint256 id
-    ) public view virtual override returns (string memory) {
+    function uri(uint256 id) public view virtual override returns (string memory) {
         if (id == 0) {
             return "https://bloom.garden/open";
         }

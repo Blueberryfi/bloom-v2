@@ -60,10 +60,7 @@ contract BTby is IBTBY, ERC20 {
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBTBY
-    function mint(
-        address account,
-        uint256 amount
-    ) external onlyBloom returns (uint256) {
+    function mint(address account, uint256 amount) external onlyBloom returns (uint256) {
         uint256 idleUsed = Math.min(idleCapital(account), amount);
         if (idleUsed > 0) {
             _idleCapital[account] -= idleUsed;
@@ -80,10 +77,7 @@ contract BTby is IBTBY, ERC20 {
     }
 
     /// @inheritdoc IBTBY
-    function increaseIdleCapital(
-        address[] memory accounts,
-        uint256[] memory amounts
-    ) external onlyBloom {
+    function increaseIdleCapital(address[] memory accounts, uint256[] memory amounts) external onlyBloom {
         uint256 length = accounts.length;
         require(length == amounts.length, Errors.ArrayMismatch());
         for (uint256 i = 0; i < length; i++) {
@@ -138,19 +132,12 @@ contract BTby is IBTBY, ERC20 {
     }
 
     /// @inheritdoc ERC20
-    function transfer(
-        address /*to*/,
-        uint256 /*amount*/
-    ) public pure override returns (bool) {
+    function transfer(address, /*to*/ uint256 /*amount*/ ) public pure override returns (bool) {
         _revertTransfer();
     }
 
     /// @inheritdoc ERC20
-    function transferFrom(
-        address /*from*/,
-        address /*to*/,
-        uint256 /*amount*/
-    ) public pure override returns (bool) {
+    function transferFrom(address, /*from*/ address, /*to*/ uint256 /*amount*/ ) public pure override returns (bool) {
         _revertTransfer();
     }
 

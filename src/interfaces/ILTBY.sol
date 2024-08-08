@@ -58,9 +58,7 @@ interface ILTBY {
      * @notice Returns the sum of open, matched, and live balances for an account.
      * @param account The address of the account to check the balance of.
      */
-    function totalBalance(
-        address account
-    ) external view returns (uint256 amount);
+    function totalBalance(address account) external view returns (uint256 amount);
 
     /**
      * @notice Returns the address of the BloomPool contract.

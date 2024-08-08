@@ -62,11 +62,7 @@ contract BTbyFuzzTest is BloomTestSetup {
         assertEq(btby.balanceOf(alice), mintAmount - burnAmount);
     }
 
-    function testFuzzIdleCapital(
-        uint256 idelCap,
-        uint256 withdrawAmount,
-        bool maxTest
-    ) public {
+    function testFuzzIdleCapital(uint256 idelCap, uint256 withdrawAmount, bool maxTest) public {
         vm.assume(idelCap > 0);
         vm.assume(withdrawAmount > 0);
         vm.assume(withdrawAmount < type(uint256).max);
@@ -102,9 +98,6 @@ contract BTbyFuzzTest is BloomTestSetup {
         }
 
         assertEq(btby.idleCapital(alice), idelCap - withdrawAmount);
-        assertEq(
-            stable.balanceOf(address(bloomPool)),
-            idelCap - withdrawAmount
-        );
+        assertEq(stable.balanceOf(address(bloomPool)), idelCap - withdrawAmount);
     }
 }

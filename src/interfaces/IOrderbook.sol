@@ -31,12 +31,7 @@ interface IOrderbook {
      * @param leverage The leverage amount for the borrower at the time the order was matched.
      * @param amount The amount of underlying assets filled in the order.
      */
-    event OrderFilled(
-        address indexed account,
-        address indexed borrower,
-        uint256 leverage,
-        uint256 amount
-    );
+    event OrderFilled(address indexed account, address indexed borrower, uint256 leverage, uint256 amount);
 
     /**
      * @notice Emitted when a user kills a lend order.
@@ -70,6 +65,7 @@ interface IOrderbook {
         OPEN, // All open orders will have an id of 0
         MATCHED, // All matched orders will have an id of 1
         LIVE // All live orders will have a blended id of 2 and the orders start timestamp
+
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -91,10 +87,7 @@ interface IOrderbook {
      * @param amount The maximum amount of underlying assets to fill orders with.
      * @return filled The total amount of underlying assets filled.
      */
-    function fillOrder(
-        address account,
-        uint256 amount
-    ) external returns (uint256 filled);
+    function fillOrder(address account, uint256 amount) external returns (uint256 filled);
 
     /**
      * @notice Allows borrowers to fill lend orders with a specified amount of underlying assets.
@@ -103,10 +96,7 @@ interface IOrderbook {
      * @param amount The maximum amount of underlying assets to fill orders with.
      * @return filled The total amount of underlying assets filled.
      */
-    function fillOrders(
-        address[] calldata accounts,
-        uint256 amount
-    ) external returns (uint256 filled);
+    function fillOrders(address[] calldata accounts, uint256 amount) external returns (uint256 filled);
 
     /**
      * @notice Allows users to cancel their lend orders and withdraw their underlying assets.
@@ -115,10 +105,7 @@ interface IOrderbook {
      * @param amount The amount of underlying assets to remove from your order.
      * @return amountKilled The total amount of underlying assets removed from the order.
      */
-    function killOrder(
-        uint256 orderId,
-        uint256 amount
-    ) external returns (uint256 amountKilled);
+    function killOrder(uint256 orderId, uint256 amount) external returns (uint256 amountKilled);
 
     /// @notice Returns the current leverage value for the borrower scaled to 1e4.
     function leverage() external view returns (uint256);
@@ -135,10 +122,7 @@ interface IOrderbook {
      * @param index The index of the matched order to get.
      * @return matchOrder The matched order details in the form of a MatchOrder struct.
      */
-    function matchOrder(
-        address account,
-        uint256 index
-    ) external view returns (MatchOrder memory matchOrder);
+    function matchOrder(address account, uint256 index) external view returns (MatchOrder memory matchOrder);
 
     /**
      * @notice Returns the number of matched orders for a users account.

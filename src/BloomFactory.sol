@@ -41,11 +41,11 @@ contract BloomFactory is Ownable2Step {
      * @param rwa_ The RWA token for the pool
      * @param initLeverage The initial leverage for the borrower
      */
-    function createBloomPool(
-        address asset_,
-        address rwa_,
-        uint256 initLeverage
-    ) external onlyOwner returns (BloomPool pool) {
+    function createBloomPool(address asset_, address rwa_, uint256 initLeverage)
+        external
+        onlyOwner
+        returns (BloomPool pool)
+    {
         pool = new BloomPool(asset_, rwa_, initLeverage, owner());
         _isFromFactory[address(pool)] = true;
     }

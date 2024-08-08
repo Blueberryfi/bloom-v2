@@ -52,11 +52,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(
-        address asset_,
-        address rwa_,
-        uint256 initLeverage
-    ) PoolStorage(asset_, rwa_) {
+    constructor(address asset_, address rwa_, uint256 initLeverage) PoolStorage(asset_, rwa_) {
         _leverage = initLeverage;
     }
 
@@ -76,19 +72,13 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function fillOrder(
-        address account,
-        uint256 amount
-    ) external KycBorrower returns (uint256 filled) {
+    function fillOrder(address account, uint256 amount) external KycBorrower returns (uint256 filled) {
         filled = _fillOrder(account, amount);
         _depositBorrower(filled);
     }
 
     /// @inheritdoc IOrderbook
-    function fillOrders(
-        address[] memory accounts,
-        uint256 amount
-    ) external KycBorrower returns (uint256 filled) {
+    function fillOrders(address[] memory accounts, uint256 amount) external KycBorrower returns (uint256 filled) {
         uint256 len = accounts.length;
         for (uint256 i = 0; i != len; ++i) {
             uint256 size = _fillOrder(accounts[i], amount);
@@ -104,10 +94,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
      * @param account The address of the order to fill
      * @param amount Amount of underlying assets of the order to fill
      */
-    function _fillOrder(
-        address account,
-        uint256 amount
-    ) internal returns (uint256 filled) {
+    function _fillOrder(address account, uint256 amount) internal returns (uint256 filled) {
         require(account != address(0), Errors.ZeroAddress());
         require(amount > 0, Errors.ZeroAmount());
 
@@ -118,9 +105,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         _matchedDepth += filled;
 
         _lTby.stage(account, filled);
-        _userMatchedOrders[account].push(
-            MatchOrder(msg.sender, _leverage, amount)
-        );
+        _userMatchedOrders[account].push(MatchOrder(msg.sender, _leverage, amount));
 
         emit OrderFilled(account, msg.sender, _leverage, filled);
     }
@@ -134,29 +119,16 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         uint256 borrowAmount = amountMatched.divWadUp(_leverage);
 
         require(borrowAmount >= 1e6, Errors.InvalidMatchSize());
-        require(
-            IERC20(_asset).balanceOf(msg.sender) >= borrowAmount,
-            Errors.InsufficientBalance()
-        );
+        require(IERC20(_asset).balanceOf(msg.sender) >= borrowAmount, Errors.InsufficientBalance());
 
         uint256 amountMinted = _bTby.mint(msg.sender, borrowAmount);
-        IERC20(_asset).safeTransferFrom(
-            msg.sender,
-            address(this),
-            amountMinted
-        );
+        IERC20(_asset).safeTransferFrom(msg.sender, address(this), amountMinted);
     }
 
     /// @inheritdoc IOrderbook
-    function killOrder(
-        uint256 id,
-        uint256 amount
-    ) external returns (uint256 amountKilled) {
+    function killOrder(uint256 id, uint256 amount) external returns (uint256 amountKilled) {
         uint256 orderDepth = _lTby.balanceOf(msg.sender, id);
-        require(
-            id == uint256(OrderType.OPEN) || id == uint256(OrderType.MATCHED),
-            Errors.InvalidOrderType()
-        );
+        require(id == uint256(OrderType.OPEN) || id == uint256(OrderType.MATCHED), Errors.InvalidOrderType());
         require(amount <= orderDepth, Errors.InsufficientDepth());
 
         // if the order is already matched we have to account for the borrower's who filled the order.
@@ -164,11 +136,8 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         // For each borrow the full amount that was matched must be removed from the order.
         // In the event that the match is not fully removed, that match will not be removed.
         if (id == uint256(OrderType.MATCHED)) {
-            (
-                address[] memory borrowers,
-                uint256[] memory removedAmounts,
-                uint256 removedAmount
-            ) = _closeMatchOrder(amount);
+            (address[] memory borrowers, uint256[] memory removedAmounts, uint256 removedAmount) =
+                _closeMatchOrder(amount);
             amountKilled = removedAmount;
             _matchedDepth -= amountKilled;
             _bTby.increaseIdleCapital(borrowers, removedAmounts);
@@ -190,15 +159,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
      * @return borrowers The borrowers who's match was removed.
      * @return removedAmounts The amount for each borrower that was removed.
      */
-    function _closeMatchOrder(
-        uint256 amount
-    )
+    function _closeMatchOrder(uint256 amount)
         internal
-        returns (
-            address[] memory borrowers,
-            uint256[] memory removedAmounts,
-            uint256 totalRemoved
-        )
+        returns (address[] memory borrowers, uint256[] memory removedAmounts, uint256 totalRemoved)
     {
         MatchOrder[] storage matches = _userMatchedOrders[msg.sender];
         uint256 remainingAmount = amount;
@@ -216,9 +179,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
                 totalRemoved += matches[index].amount;
 
                 borrowers[matchesRemoved] = matches[index].borrower;
-                removedAmounts[matchesRemoved] = matches[index].amount.divWadUp(
-                    matches[index].leverage
-                );
+                removedAmounts[matchesRemoved] = matches[index].amount.divWadUp(matches[index].leverage);
 
                 matchesRemoved++;
                 matches.pop();
@@ -263,10 +224,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function matchOrder(
-        address account,
-        uint256 index
-    ) external view returns (MatchOrder memory) {
+    function matchOrder(address account, uint256 index) external view returns (MatchOrder memory) {
         return _userMatchedOrders[account][index];
     }
 

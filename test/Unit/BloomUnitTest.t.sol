@@ -27,12 +27,7 @@ contract BloomUnitTest is BloomTestSetup {
     }
 
     function testDeployment() public {
-        BloomPool newPool = new BloomPool(
-            address(stable),
-            address(billToken),
-            initialLeverage,
-            owner
-        );
+        BloomPool newPool = new BloomPool(address(stable), address(billToken), initialLeverage, owner);
         assertNotEq(address(newPool), address(0));
     }
 
@@ -67,23 +62,13 @@ contract BloomUnitTest is BloomTestSetup {
 
     function test_CreateBloomPoolRevert() public {
         /// Expect revert if not owner calls
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector,
-                address(this)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
         bloomFactory.createBloomPool(address(stable), address(billToken), 200);
     }
 
     function testSetBorrowerWhitelist() public {
         /// Expect revert if not owner calls
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector,
-                address(this)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
         bloomPool.whitelistBorrower(borrower);
         assertEq(bloomPool.isKYCedBorrower(borrower), false);
 
@@ -97,12 +82,7 @@ contract BloomUnitTest is BloomTestSetup {
 
     function testSetMarketMakerWhitelist() public {
         /// Expect revert if not owner calls
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector,
-                address(this)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
         bloomPool.whitelistMarketMaker(marketMaker);
         assertEq(bloomPool.isKYCedMarketMaker(marketMaker), false);
 
@@ -116,12 +96,7 @@ contract BloomUnitTest is BloomTestSetup {
 
     function testSetLeverageNonOwner() public {
         /// Expect revert if not owner calls
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector,
-                address(this)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
         bloomPool.setLeverage(0.025e18);
         assertEq(bloomPool.leverage(), initialLeverage);
     }

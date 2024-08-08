@@ -45,24 +45,15 @@ contract LTbyUnitTest is BloomTestSetup {
     }
 
     function testOpenUri() public view {
-        assertEq(
-            ltby.uri(uint256(IOrderbook.OrderType.OPEN)),
-            "https://bloom.garden/open"
-        );
+        assertEq(ltby.uri(uint256(IOrderbook.OrderType.OPEN)), "https://bloom.garden/open");
     }
 
     function testMatchedUri() public view {
-        assertEq(
-            ltby.uri(uint256(IOrderbook.OrderType.MATCHED)),
-            "https://bloom.garden/matched"
-        );
+        assertEq(ltby.uri(uint256(IOrderbook.OrderType.MATCHED)), "https://bloom.garden/matched");
     }
 
     function testLiveUri() public view {
-        assertEq(
-            ltby.uri(uint256(IOrderbook.OrderType.LIVE)),
-            "https://bloom.garden/live"
-        );
+        assertEq(ltby.uri(uint256(IOrderbook.OrderType.LIVE)), "https://bloom.garden/live");
     }
 
     function testNonBloomCaller() public {

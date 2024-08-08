@@ -48,10 +48,7 @@ interface IBTBY {
      * @param accounts An array of accounts to increase idle capital.
      * @param amounts An array of amounts to increase idle capital.
      */
-    function increaseIdleCapital(
-        address[] memory accounts,
-        uint256[] memory amounts
-    ) external;
+    function increaseIdleCapital(address[] memory accounts, uint256[] memory amounts) external;
 
     /**
      * @notice Decreases the idle capital of the borrower.
