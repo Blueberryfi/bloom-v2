@@ -17,6 +17,7 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {IPoolStorage} from "@bloom-v2/interfaces/IPoolStorage.sol";
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
+import "forge-std/console2.sol";
 
 contract BloomFuzzTest is BloomTestSetup {
     using FpMath for uint256;
@@ -210,6 +211,70 @@ contract BloomFuzzTest is BloomTestSetup {
         assertEq(
             ltby.matchedBalance(rando),
             filledOrderCount > 2 ? filledAmounts[2] : 0
+        );
+    }
+
+    function testFuzz_KillOpenOrder(
+        uint256 orderSize,
+        uint256 killSize
+    ) public {
+        orderSize = bound(orderSize, 1e6, 500_000_000e6);
+        killSize = bound(killSize, 1e6, 500_000_000e6);
+
+        _createLendOrder(alice, orderSize);
+        vm.startPrank(alice);
+
+        if (killSize > orderSize) {
+            vm.expectRevert(Errors.InsufficientDepth.selector);
+            bloomPool.killOrder(0, killSize);
+            return;
+        } else {
+            vm.expectEmit(true, false, false, true);
+            emit IOrderbook.OrderKilled(alice, 0, killSize);
+            bloomPool.killOrder(0, killSize);
+        }
+
+        assertEq(ltby.openBalance(alice), orderSize - killSize);
+        assertEq(bloomPool.openDepth(), orderSize - killSize);
+        assertEq(stable.balanceOf(alice), killSize);
+        assertEq(bloomPool.matchOrderCount(alice), 0);
+    }
+
+    function testFuzz_KillMatchedOrder(
+        uint256 orderSize,
+        uint256 killSize
+    ) public {
+        orderSize = bound(orderSize, 1e6, 500_000_000e6);
+        killSize = bound(
+            killSize,
+            uint256(1e6).mulWadUp(initialLeverage),
+            500_000_000e6
+        );
+        vm.assume(orderSize > killSize);
+
+        // Open order
+        _createLendOrder(alice, orderSize);
+
+        // Match the order
+        uint256 borrowerAmount = orderSize.divWadUp(initialLeverage);
+        vm.startPrank(borrower);
+        stable.mint(borrower, borrowerAmount);
+        stable.approve(address(bloomPool), borrowerAmount);
+        bloomPool.fillOrder(alice, orderSize);
+
+        // Kill the matched order
+        vm.startPrank(alice);
+        vm.expectEmit(true, false, false, true);
+        emit IOrderbook.OrderKilled(alice, 1, killSize);
+        bloomPool.killOrder(1, killSize);
+
+        assertEq(ltby.matchedBalance(alice), orderSize - killSize);
+        assertEq(bloomPool.matchedDepth(), orderSize - killSize);
+        assertEq(stable.balanceOf(alice), killSize);
+        assertEq(btby.balanceOf(borrower), borrowerAmount);
+        assertEq(
+            btby.idleCapital(borrower),
+            killSize.divWadUp(initialLeverage)
         );
     }
 }

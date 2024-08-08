@@ -123,4 +123,21 @@ interface IOrderbook {
 
     /// @notice Returns the current total depth of matched orders.
     function matchedDepth() external view returns (uint256);
+
+    /**
+     * @notice Returns the matched order details for a users account.
+     * @param account The address of the user to get matched orders for.
+     * @param index The index of the matched order to get.
+     * @return matchOrder The matched order details in the form of a MatchOrder struct.
+     */
+    function matchOrder(
+        address account,
+        uint256 index
+    ) external view returns (MatchOrder memory matchOrder);
+
+    /**
+     * @notice Returns the number of matched orders for a users account.
+     * @param account The address of the user to get the number of matched orders for.
+     */
+    function matchOrderCount(address account) external view returns (uint256);
 }

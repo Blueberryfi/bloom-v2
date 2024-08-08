@@ -164,6 +164,8 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
             ) = _closeMatchOrder(amount);
             _matchedDepth -= amount;
             _bTby.increaseIdleCapital(borrowers, removedAmounts);
+        } else {
+            _openDepth -= amount;
         }
 
         _lTby.close(msg.sender, id, amount);
@@ -174,6 +176,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
 
     /**
      * @notice Closes the matched order for the user
+     * @dev Orders are closed in a LIFO manner
      * @param amount The amount of underlying assets to close the matched order
      * @return borrowers The borrowers who's match was removed.
      * @return removedAmounts The amount for each borrower that was removed.
@@ -186,21 +189,41 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     {
         MatchOrder[] storage matches = _userMatchedOrders[msg.sender];
         uint256 remainingAmount = amount;
+        uint256 leverageValue = _leverage;
 
-        uint256 startIndex = matches.length - 1;
-        for (uint256 i = startIndex; i == 0; --i) {
+        uint256 matchLength = matches.length;
+        borrowers = new address[](matchLength);
+        removedAmounts = new uint256[](matchLength);
+
+        uint256 index = matchLength - 1;
+        while (index >= 0) {
             uint256 matchedAmount = Math.min(
                 remainingAmount,
-                matches[i].amount
+                matches[index].amount
             );
-
-            matches[i].amount -= matchedAmount;
+            matches[index].amount -= matchedAmount;
             remainingAmount -= matchedAmount;
-            borrowers[i] = matches[i].borrower;
-            removedAmounts[i] = matchedAmount;
 
-            if (matches[i].amount == 0) {
+            borrowers[index] = matches[index].borrower;
+            removedAmounts[index] = matchedAmount.divWadUp(leverageValue);
+
+            if (matches[index].amount == 0) {
                 matches.pop();
+            }
+
+            if (index == 0 || remainingAmount == 0) {
+                break;
+            }
+            index--;
+        }
+
+        // Reduce the length of the borrowers and removedAmounts arrays if not all orders were removed
+        uint256 ordersRemoved = matchLength - index;
+        if (ordersRemoved != matchLength) {
+            uint256 difference = matchLength - ordersRemoved;
+            assembly {
+                mstore(borrowers, sub(mload(borrowers), difference))
+                mstore(removedAmounts, sub(mload(removedAmounts), difference))
             }
         }
     }
@@ -228,5 +251,18 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     /// @inheritdoc IOrderbook
     function matchedDepth() external view returns (uint256) {
         return _matchedDepth;
+    }
+
+    /// @inheritdoc IOrderbook
+    function matchOrder(
+        address account,
+        uint256 index
+    ) external view returns (MatchOrder memory) {
+        return _userMatchedOrders[account][index];
+    }
+
+    /// @inheritdoc IOrderbook
+    function matchOrderCount(address account) external view returns (uint256) {
+        return _userMatchedOrders[account].length;
     }
 }
