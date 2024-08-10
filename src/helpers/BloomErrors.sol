@@ -57,6 +57,15 @@ library BloomErrors {
     /// @notice Emitted when a user tries to kill an order that is not open or matched.
     error InvalidOrderType();
 
+    /// @notice Emitted when trying to swap out TBYs that have not matured.
+    error TBYNotMatured();
+
+    /// @notice Emitted when a user tries to check the total supply of a order that isnt a live TBY.
+    error InvalidId();
+
+    /// @notice Emitted when a borrower or lender has no shares of lTBY or bTBY.
+    error ZeroShare();
+
     /*///////////////////////////////////////////////////////////////
                             General Errors    
     //////////////////////////////////////////////////////////////*/

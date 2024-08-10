@@ -37,14 +37,6 @@ interface ILTBY {
     function stage(address account, uint256 amount) external;
 
     /**
-     * @notice Called to redeem underlying tokens and realize yield.
-     * @dev This can only occur post the maturity date of the token.
-     * @dev Only the BloomPool can call this function.
-     * @param amount The amount of underlying tokens that have been matched.
-     */
-    function redeem(uint256 amount) external;
-
-    /**
      * @notice Returns the open balance of an account.
      * @param account The account to check the balance of.
      */

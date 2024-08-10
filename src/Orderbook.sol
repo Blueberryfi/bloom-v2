@@ -27,7 +27,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     using Math for uint256;
 
     /*///////////////////////////////////////////////////////////////
-                            Storage    
+                                Storage    
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Current total depth of unfilled orders.
@@ -38,6 +38,15 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
 
     /// @notice Mapping of the user's matched orders.
     mapping(address => MatchOrder[]) private _userMatchedOrders;
+
+    /// @notice Mapping of TBY ids to the RWA pricing ranges.
+    mapping(uint256 => RwaPrice) private _tbyIdToRwaPrice;
+
+    /// @notice Mapping of TBY ids to the borower's return amount.
+    mapping(uint256 => uint256) private _tbyBorrowerReturns;
+
+    /// @notice Mapping of TBY ids to overall lender's return amount.
+    mapping(uint256 => uint256) private _tbyLenderReturns;
 
     /*///////////////////////////////////////////////////////////////
                               Modifier    
@@ -52,7 +61,12 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address asset_, address rwa_, uint256 initLeverage) PoolStorage(asset_, rwa_) {
+    constructor(
+        address asset_,
+        address rwa_,
+        address oracle_,
+        uint256 initLeverage
+    ) PoolStorage(asset_, rwa_, oracle_) {
         _leverage = initLeverage;
     }
 
@@ -73,13 +87,19 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function fillOrder(address account, uint256 amount) external KycBorrower returns (uint256 filled) {
+    function fillOrder(
+        address account,
+        uint256 amount
+    ) external KycBorrower returns (uint256 filled) {
         filled = _fillOrder(account, amount);
         _depositBorrower(filled);
     }
 
     /// @inheritdoc IOrderbook
-    function fillOrders(address[] memory accounts, uint256 amount) external KycBorrower returns (uint256 filled) {
+    function fillOrders(
+        address[] memory accounts,
+        uint256 amount
+    ) external KycBorrower returns (uint256 filled) {
         uint256 len = accounts.length;
         for (uint256 i = 0; i != len; ++i) {
             uint256 size = _fillOrder(accounts[i], amount);
@@ -95,7 +115,10 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
      * @param account The address of the order to fill
      * @param amount Amount of underlying assets of the order to fill
      */
-    function _fillOrder(address account, uint256 amount) internal returns (uint256 filled) {
+    function _fillOrder(
+        address account,
+        uint256 amount
+    ) internal returns (uint256 filled) {
         require(account != address(0), Errors.ZeroAddress());
         require(amount > 0, Errors.ZeroAmount());
 
@@ -105,7 +128,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         _openDepth -= filled;
         _matchedDepth += filled;
 
-        _userMatchedOrders[account].push(MatchOrder(msg.sender, _leverage, amount));
+        _userMatchedOrders[account].push(
+            MatchOrder(msg.sender, _leverage, amount)
+        );
 
         _lTby.stage(account, filled);
 
@@ -121,16 +146,29 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         uint256 borrowAmount = amountMatched.divWadUp(_leverage);
 
         require(borrowAmount >= 1e6, Errors.InvalidMatchSize());
-        require(IERC20(_asset).balanceOf(msg.sender) >= borrowAmount, Errors.InsufficientBalance());
+        require(
+            IERC20(_asset).balanceOf(msg.sender) >= borrowAmount,
+            Errors.InsufficientBalance()
+        );
 
         uint256 amountMinted = _bTby.mint(msg.sender, borrowAmount);
-        IERC20(_asset).safeTransferFrom(msg.sender, address(this), amountMinted);
+        IERC20(_asset).safeTransferFrom(
+            msg.sender,
+            address(this),
+            amountMinted
+        );
     }
 
     /// @inheritdoc IOrderbook
-    function killOrder(uint256 id, uint256 amount) external returns (uint256 amountKilled) {
+    function killOrder(
+        uint256 id,
+        uint256 amount
+    ) external returns (uint256 amountKilled) {
         uint256 orderDepth = _lTby.balanceOf(msg.sender, id);
-        require(id == uint256(OrderType.OPEN) || id == uint256(OrderType.MATCHED), Errors.InvalidOrderType());
+        require(
+            id == uint256(OrderType.OPEN) || id == uint256(OrderType.MATCHED),
+            Errors.InvalidOrderType()
+        );
         require(amount <= orderDepth, Errors.InsufficientDepth());
 
         // if the order is already matched we have to account for the borrower's who filled the order.
@@ -138,8 +176,11 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         // For each borrow the full amount that was matched must be removed from the order.
         // In the event that the match is not fully removed, that match will not be removed.
         if (id == uint256(OrderType.MATCHED)) {
-            (address[] memory borrowers, uint256[] memory removedAmounts, uint256 removedAmount) =
-                _closeMatchOrder(amount);
+            (
+                address[] memory borrowers,
+                uint256[] memory removedAmounts,
+                uint256 removedAmount
+            ) = _closeMatchOrder(msg.sender, amount);
             amountKilled = removedAmount;
             _matchedDepth -= amountKilled;
             _bTby.increaseIdleCapital(borrowers, removedAmounts);
@@ -154,6 +195,89 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         emit OrderKilled(msg.sender, id, amountKilled);
     }
 
+    function swapIn(
+        address[] memory accounts,
+        uint256 stableAmount
+    ) external KycMarketMaker returns (uint256 id, uint256 amountSwapped) {
+        uint256 len = accounts.length;
+        for (uint256 i = 0; i != len; ++i) {
+            (
+                address[] memory borrowers,
+                uint256[] memory removedAmounts,
+                uint256 removedAmount
+            ) = _closeMatchOrder(accounts[i], stableAmount);
+            stableAmount -= removedAmount;
+            amountSwapped += removedAmount;
+            if (stableAmount == 0) break;
+            id = _lTby.swapIn(
+                accounts[i],
+                borrowers,
+                removedAmounts,
+                amountSwapped
+            );
+        }
+
+        // Initialize the starting price of the RWA token if it has not been set
+        RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
+        uint256 currentPrice = _oracle.getPrice(_rwa);
+
+        if (rwaPrice.startPrice == 0) {
+            _tbyIdToRwaPrice[id].startPrice = uint128(currentPrice);
+        }
+        // 1 for 1 swap until oracle PR
+        uint256 rwaAmount = (currentPrice * amountSwapped) / 1e18;
+        IERC20(_rwa).safeTransferFrom(msg.sender, address(this), rwaAmount);
+        IERC20(_asset).safeTransfer(msg.sender, amountSwapped);
+
+        emit MarketMakerSwappedIn(id, msg.sender, amountSwapped);
+    }
+
+    function swapOut(uint256 id, uint256 rwaAmount) external KycMarketMaker {
+        require(rwaAmount > 0, Errors.ZeroAmount());
+        require(
+            IERC20(_rwa).balanceOf(msg.sender) >= rwaAmount,
+            Errors.InsufficientBalance()
+        );
+        RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
+        uint256 currentPrice = _oracle.getPrice(_rwa);
+
+        if (rwaPrice.endPrice == 0) {
+            _tbyIdToRwaPrice[id].endPrice = uint128(currentPrice);
+        }
+
+        uint256 tbyAmount = (rwaPrice.startPrice * rwaAmount) / 1e18;
+        uint256 stableAmount = (rwaAmount * 1e6) / currentPrice;
+
+        uint256 lenderReturn = (_lTby.getRate(id) * tbyAmount) / 1e12;
+        uint256 borrowerReturn = tbyAmount - lenderReturn;
+
+        _tbyBorrowerReturns[id] += borrowerReturn;
+        _tbyLenderReturns[id] += lenderReturn;
+
+        IERC20(_asset).safeTransferFrom(
+            msg.sender,
+            address(this),
+            stableAmount
+        );
+        IERC20(_rwa).safeTransfer(msg.sender, rwaAmount);
+    }
+
+    function redeemLender(uint256 id) external {
+        uint256 lenderReturn = _tbyLenderReturns[id];
+        uint256 share = _lTby.shareOf(id, msg.sender);
+
+        require(lenderReturn > 0, Errors.TBYNotMatured());
+        require(share > 0, Errors.ZeroShares());
+
+        uint256 reward = lenderReturn.divWadUp(share);
+        _lTby.close(msg.sender, id, _lTby.balanceOf(msg.sender, id));
+        IERC20(_asset).safeTransfer(msg.sender, reward);
+    }
+
+    function redeemBorrower(address account, uint256 amount) external override {
+        // TODO: Implement redeemBorrower
+    }
+
     /**
      * @notice Closes the matched order for the user
      * @dev Orders are closed in a LIFO manner
@@ -161,11 +285,18 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
      * @return borrowers The borrowers who's match was removed.
      * @return removedAmounts The amount for each borrower that was removed.
      */
-    function _closeMatchOrder(uint256 amount)
+    function _closeMatchOrder(
+        address account,
+        uint256 amount
+    )
         internal
-        returns (address[] memory borrowers, uint256[] memory removedAmounts, uint256 totalRemoved)
+        returns (
+            address[] memory borrowers,
+            uint256[] memory removedAmounts,
+            uint256 totalRemoved
+        )
     {
-        MatchOrder[] storage matches = _userMatchedOrders[msg.sender];
+        MatchOrder[] storage matches = _userMatchedOrders[account];
         uint256 remainingAmount = amount;
 
         uint256 matchLength = matches.length;
@@ -181,7 +312,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
                 totalRemoved += matches[index].amount;
 
                 borrowers[matchesRemoved] = matches[index].borrower;
-                removedAmounts[matchesRemoved] = matches[index].amount.divWadUp(matches[index].leverage);
+                removedAmounts[matchesRemoved] = matches[index].amount.divWadUp(
+                    matches[index].leverage
+                );
 
                 matchesRemoved++;
                 matches.pop();
@@ -226,7 +359,10 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function matchOrder(address account, uint256 index) external view returns (MatchOrder memory) {
+    function matchOrder(
+        address account,
+        uint256 index
+    ) external view returns (MatchOrder memory) {
         return _userMatchedOrders[account][index];
     }
 

@@ -25,12 +25,18 @@ contract BloomPool is Orderbook, Ownable2Step {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address asset_, address rwa_, uint256 initLeverage, address owner_)
-        Ownable(owner_)
-        Orderbook(asset_, rwa_, initLeverage)
-    {
+    constructor(
+        address asset_,
+        address rwa_,
+        address oracle_,
+        uint256 initLeverage,
+        address owner_
+    ) Ownable(owner_) Orderbook(asset_, rwa_, oracle_, initLeverage) {
         require(owner_ != address(0), Errors.ZeroAddress());
-        require(initLeverage >= 1e18 && initLeverage < 100e18, Errors.InvalidLeverage());
+        require(
+            initLeverage >= 1e18 && initLeverage < 100e18,
+            Errors.InvalidLeverage()
+        );
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -63,7 +69,10 @@ contract BloomPool is Orderbook, Ownable2Step {
      * @param leverage Updated leverage
      */
     function setLeverage(uint256 leverage) external onlyOwner {
-        require(leverage >= 1e18 && leverage < 100e18, Errors.InvalidLeverage());
+        require(
+            leverage >= 1e18 && leverage < 100e18,
+            Errors.InvalidLeverage()
+        );
         _leverage = leverage;
         emit LeverageSet(leverage);
     }
