@@ -17,6 +17,7 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {PoolStorage} from "@bloom-v2/PoolStorage.sol";
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
+import "forge-std/console2.sol";
 
 /**
  * @title Orderbook
@@ -36,17 +37,14 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     /// @notice Current total depth of matched orders.
     uint256 private _matchedDepth;
 
+    /// @notice Mapping of users to their open order amount.
+    mapping(address => uint256) private _userOpenOrder;
+
     /// @notice Mapping of the user's matched orders.
     mapping(address => MatchOrder[]) private _userMatchedOrders;
 
-    /*///////////////////////////////////////////////////////////////
-                              Modifier    
-    //////////////////////////////////////////////////////////////*/
-
-    modifier onlyBTby() {
-        require(msg.sender == address(_bTby), Errors.NotBloom());
-        _;
-    }
+    /// @notice Mapping of borrower's to the amount of idle capital they have.
+    mapping(address => uint256) private _idleCapital;
 
     /*///////////////////////////////////////////////////////////////
                             Constructor    
@@ -65,10 +63,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         require(amount > 0, Errors.ZeroAmount());
 
         _openDepth += amount;
-        _lTby.open(msg.sender, amount);
+        _userOpenOrder[msg.sender] += amount;
 
         IERC20(_asset).safeTransferFrom(msg.sender, address(this), amount);
-
         emit OrderCreated(msg.sender, amount);
     }
 
@@ -90,6 +87,68 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         _depositBorrower(filled);
     }
 
+    /// @inheritdoc IOrderbook
+    function killOpenOrder(uint256 amount) external {
+        uint256 orderDepth = _userOpenOrder[msg.sender];
+        require(amount <= orderDepth, Errors.InsufficientDepth());
+
+        _userOpenOrder[msg.sender] -= amount;
+        _openDepth -= amount;
+
+        IERC20(_asset).safeTransfer(msg.sender, amount);
+        emit OrderKilled(msg.sender, amount);
+    }
+
+    /// @inheritdoc IOrderbook
+    function killMatchOrder(uint256 amount) external returns (uint256 totalRemoved) {
+        // if the order is already matched we have to account for the borrower's who filled the order.
+        // If you kill a match order and there are multiple borrowers, the order will be closed in a LIFO manner.
+        // For each borrow the full amount that was matched must be removed from the order.
+        // In the event that the match is not fully removed, that match will not be removed.
+        MatchOrder[] storage matches = _userMatchedOrders[msg.sender];
+        uint256 remainingAmount = amount;
+
+        uint256 length = matches.length;
+        for (uint256 i = length; i != 0; --i) {
+            uint256 index = i - 1;
+
+            if (remainingAmount >= matches[index].amount) {
+                remainingAmount -= matches[index].amount;
+                totalRemoved += matches[index].amount;
+
+                uint256 borrowerAmount = matches[index].amount.divWadUp(matches[index].leverage);
+                _idleCapital[matches[index].borrower] += borrowerAmount;
+
+                matches.pop();
+            } else {
+                break;
+            }
+        }
+        _matchedDepth -= totalRemoved;
+        IERC20(_asset).safeTransfer(msg.sender, totalRemoved);
+
+        emit OrderKilled(msg.sender, totalRemoved);
+    }
+
+    /// @inheritdoc IOrderbook
+    function withdrawIdleCapital(uint256 amount) external {
+        address account = msg.sender;
+        require(amount > 0, Errors.ZeroAmount());
+
+        uint256 idleFunds = _idleCapital[account];
+
+        if (amount == type(uint256).max) {
+            amount = idleFunds;
+        } else {
+            require(idleFunds >= amount, Errors.InsufficientBalance());
+        }
+
+        _idleCapital[account] -= amount;
+        IERC20(_asset).safeTransfer(account, amount);
+
+        emit IdleCapitalWithdrawn(account, amount);
+    }
+
     /**
      * @notice Fills an order with a specified amount of underlying assets
      * @param account The address of the order to fill
@@ -99,15 +158,14 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         require(account != address(0), Errors.ZeroAddress());
         require(amount > 0, Errors.ZeroAmount());
 
-        uint256 orderDepth = _lTby.openBalance(account);
+        uint256 orderDepth = _userOpenOrder[account];
 
         filled = Math.min(orderDepth, amount);
         _openDepth -= filled;
         _matchedDepth += filled;
+        _userOpenOrder[account] -= filled;
 
-        _userMatchedOrders[account].push(MatchOrder(msg.sender, _leverage, amount));
-
-        _lTby.stage(account, filled);
+        _userMatchedOrders[account].push(MatchOrder(msg.sender, _leverage, filled));
 
         emit OrderFilled(account, msg.sender, _leverage, filled);
     }
@@ -115,99 +173,54 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     /**
      * @notice Deposits the leveraged matched amount of underlying assets to the borrower
      * @dev The borrower supplies less than the matched amount of underlying assets based on the leverage
-     * @param amountMatched Amount of underlying assets matched by the borrower
+     * @param amount Amount of underlying assets matched by the borrower
      */
-    function _depositBorrower(uint256 amountMatched) internal {
-        uint256 borrowAmount = amountMatched.divWadUp(_leverage);
+    function _depositBorrower(uint256 amount) internal {
+        uint256 borrowAmount = amount.divWadUp(_leverage);
 
         require(borrowAmount >= 1e6, Errors.InvalidMatchSize());
         require(IERC20(_asset).balanceOf(msg.sender) >= borrowAmount, Errors.InsufficientBalance());
 
-        uint256 amountMinted = _bTby.mint(msg.sender, borrowAmount);
-        IERC20(_asset).safeTransferFrom(msg.sender, address(this), amountMinted);
+        borrowAmount = _utilizeIdleCapital(msg.sender, borrowAmount);
+        IERC20(_asset).safeTransferFrom(msg.sender, address(this), borrowAmount);
     }
 
-    /// @inheritdoc IOrderbook
-    function killOrder(uint256 id, uint256 amount) external returns (uint256 amountKilled) {
-        uint256 orderDepth = _lTby.balanceOf(msg.sender, id);
-        require(id == uint256(OrderType.OPEN) || id == uint256(OrderType.MATCHED), Errors.InvalidOrderType());
-        require(amount <= orderDepth, Errors.InsufficientDepth());
-
-        // if the order is already matched we have to account for the borrower's who filled the order.
-        // If you kill a match order and there are multiple borrowers, the order will be closed in a LIFO manner.
-        // For each borrow the full amount that was matched must be removed from the order.
-        // In the event that the match is not fully removed, that match will not be removed.
-        if (id == uint256(OrderType.MATCHED)) {
-            (address[] memory borrowers, uint256[] memory removedAmounts, uint256 removedAmount) =
-                _closeMatchOrder(amount);
-            amountKilled = removedAmount;
-            _matchedDepth -= amountKilled;
-            _bTby.increaseIdleCapital(borrowers, removedAmounts);
-        } else {
-            amountKilled = amount;
-            _openDepth -= amountKilled;
+    function _utilizeIdleCapital(address account, uint256 amount) internal returns (uint256) {
+        uint256 idleUsed = Math.min(_idleCapital[account], amount);
+        if (idleUsed > 0) {
+            _idleCapital[account] -= idleUsed;
+            amount -= idleUsed;
+            emit IdleCapitalDecreased(account, idleUsed);
         }
-
-        _lTby.close(msg.sender, id, amountKilled);
-
-        IERC20(_asset).safeTransfer(msg.sender, amountKilled);
-        emit OrderKilled(msg.sender, id, amountKilled);
+        return amount;
     }
 
     /**
      * @notice Closes the matched order for the user
      * @dev Orders are closed in a LIFO manner
      * @param amount The amount of underlying assets to close the matched order
-     * @return borrowers The borrowers who's match was removed.
-     * @return removedAmounts The amount for each borrower that was removed.
+     * @return totalRemoved The amount for each borrower that was removed.
      */
-    function _closeMatchOrder(uint256 amount)
-        internal
-        returns (address[] memory borrowers, uint256[] memory removedAmounts, uint256 totalRemoved)
-    {
+    function _closeMatchOrder(uint256 amount) internal returns (uint256 totalRemoved) {
         MatchOrder[] storage matches = _userMatchedOrders[msg.sender];
         uint256 remainingAmount = amount;
 
-        uint256 matchLength = matches.length;
-        borrowers = new address[](matchLength);
-        removedAmounts = new uint256[](matchLength);
-
-        uint256 matchesRemoved;
-        for (uint256 i = matchLength; i != 0; --i) {
+        uint256 length = matches.length;
+        for (uint256 i = length; i != 0; --i) {
             uint256 index = i - 1;
 
             if (remainingAmount >= matches[index].amount) {
                 remainingAmount -= matches[index].amount;
                 totalRemoved += matches[index].amount;
 
-                borrowers[matchesRemoved] = matches[index].borrower;
-                removedAmounts[matchesRemoved] = matches[index].amount.divWadUp(matches[index].leverage);
+                uint256 borrowerAmount = matches[index].amount.divWadUp(matches[index].leverage);
+                _idleCapital[matches[index].borrower] += borrowerAmount;
 
-                matchesRemoved++;
                 matches.pop();
             } else {
                 break;
             }
         }
-
-        // Reduce the length of the borrowers and removedAmounts arrays if not all orders were removed
-        if (matchesRemoved != matchLength) {
-            uint256 difference = matchLength - matchesRemoved;
-            assembly {
-                mstore(borrowers, sub(mload(borrowers), difference))
-                mstore(removedAmounts, sub(mload(removedAmounts), difference))
-            }
-        }
-    }
-
-    /**
-     * @notice Transfer asset to an address
-     * @dev Only the borrower TBY can call this function
-     * @param to Address that is receiving the asset
-     * @param amount Amount of asset to transfer
-     */
-    function transferAsset(address to, uint256 amount) external onlyBTby {
-        IERC20(_asset).safeTransfer(to, amount);
     }
 
     /// @inheritdoc IOrderbook
@@ -226,12 +239,30 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function matchOrder(address account, uint256 index) external view returns (MatchOrder memory) {
+    function amountOpen(address account) external view returns (uint256) {
+        return _userOpenOrder[account];
+    }
+
+    /// @inheritdoc IOrderbook
+    function amountMatched(address account) external view returns (uint256 amount) {
+        uint256 len = _userMatchedOrders[account].length;
+        for (uint256 i = 0; i != len; ++i) {
+            amount += _userMatchedOrders[account][i].amount;
+        }
+    }
+
+    /// @inheritdoc IOrderbook
+    function matchedOrder(address account, uint256 index) external view returns (MatchOrder memory) {
         return _userMatchedOrders[account][index];
     }
 
     /// @inheritdoc IOrderbook
-    function matchOrderCount(address account) external view returns (uint256) {
+    function matchedOrderCount(address account) external view returns (uint256) {
         return _userMatchedOrders[account].length;
+    }
+
+    /// @inheritdoc IOrderbook
+    function idleCapital(address account) public view returns (uint256) {
+        return _idleCapital[account];
     }
 }

@@ -146,10 +146,4 @@ contract BloomUnitTest is BloomTestSetup {
         vm.expectRevert(Errors.InsufficientBalance.selector);
         bloomPool.fillOrder(alice, 100e6);
     }
-
-    function testKillInvalidOrder() public {
-        // Should revert if the order address is zero
-        vm.expectRevert(Errors.InvalidOrderType.selector);
-        bloomPool.killOrder(15, 100e6);
-    }
 }

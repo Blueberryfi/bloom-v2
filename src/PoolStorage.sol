@@ -14,7 +14,6 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {LTby} from "@bloom-v2/token/LTby.sol";
-import {BTby} from "@bloom-v2/token/BTby.sol";
 import {IPoolStorage} from "@bloom-v2/interfaces/IPoolStorage.sol";
 
 /**
@@ -28,9 +27,6 @@ abstract contract PoolStorage is IPoolStorage {
 
     /// @notice Addresss of the lTby token
     LTby internal _lTby;
-
-    /// @notice Addresss of the bTby token
-    BTby internal _bTby;
 
     /// @notice Address of the underlying asset of the Pool.
     address internal immutable _asset;
@@ -77,7 +73,6 @@ abstract contract PoolStorage is IPoolStorage {
 
         uint8 decimals = IERC20Metadata(asset_).decimals();
         _lTby = new LTby(address(this), decimals);
-        _bTby = new BTby(address(this), decimals);
 
         _assetDecimals = decimals;
         _rwaDecimals = IERC20Metadata(rwa_).decimals();
@@ -90,11 +85,6 @@ abstract contract PoolStorage is IPoolStorage {
     /// @inheritdoc IPoolStorage
     function lTby() external view returns (address) {
         return address(_lTby);
-    }
-
-    /// @inheritdoc IPoolStorage
-    function bTby() external view returns (address) {
-        return address(_bTby);
     }
 
     /// @inheritdoc IPoolStorage

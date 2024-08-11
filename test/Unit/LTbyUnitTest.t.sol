@@ -44,16 +44,8 @@ contract LTbyUnitTest is BloomTestSetup {
         assertEq(ltby.symbol(), "lTBY");
     }
 
-    function testOpenUri() public view {
-        assertEq(ltby.uri(uint256(IOrderbook.OrderType.OPEN)), "https://bloom.garden/open");
-    }
-
-    function testMatchedUri() public view {
-        assertEq(ltby.uri(uint256(IOrderbook.OrderType.MATCHED)), "https://bloom.garden/matched");
-    }
-
-    function testLiveUri() public view {
-        assertEq(ltby.uri(uint256(IOrderbook.OrderType.LIVE)), "https://bloom.garden/live");
+    function testUri() public view {
+        assertEq(ltby.uri(1), "https://bloom.garden/live");
     }
 
     function testNonBloomCaller() public {
@@ -61,14 +53,6 @@ contract LTbyUnitTest is BloomTestSetup {
 
         // Revert open
         vm.expectRevert(Errors.NotBloom.selector);
-        ltby.open(alice, 1e6);
-
-        // Revert stage
-        vm.expectRevert(Errors.NotBloom.selector);
-        ltby.stage(alice, 1e6);
-
-        // Revert close
-        vm.expectRevert(Errors.NotBloom.selector);
-        ltby.close(alice, 0, 1e6);
+        ltby.mint(0, alice, 1e6);
     }
 }

@@ -15,52 +15,6 @@ pragma solidity ^0.8.26;
  */
 interface ILTBY {
     /**
-     * @notice Opens a new order in the orderbook.
-     * @dev Only the BloomPool can call this function
-     * @param amount The amount of underlying tokens being placed into the orderbook.
-     */
-    function open(address account, uint256 amount) external;
-
-    /**
-     * @notice Close an order in the orderbook.
-     * @dev Only the BloomPool can call this function
-     * @param amount The amount of underlying tokens to remove from the orderbook.
-     */
-    function close(address account, uint256 id, uint256 amount) external;
-
-    /**
-     * @notice The order is staged for the market maker.
-     * @dev The staging process occurs after the order is matched by the borrower.
-     * @dev Only the BloomPool can call this function.
-     * @param amount The amount of underlying tokens that have been matched.
-     */
-    function stage(address account, uint256 amount) external;
-
-    /**
-     * @notice Called to redeem underlying tokens and realize yield.
-     * @dev This can only occur post the maturity date of the token.
-     * @dev Only the BloomPool can call this function.
-     * @param amount The amount of underlying tokens that have been matched.
-     */
-    function redeem(uint256 amount) external;
-
-    /**
-     * @notice Returns the open balance of an account.
-     * @param account The account to check the balance of.
-     */
-    function openBalance(address account) external view returns (uint256);
-
-    function matchedBalance(address account) external view returns (uint256);
-
-    function liveBalance(address account) external view returns (uint256);
-
-    /**
-     * @notice Returns the sum of open, matched, and live balances for an account.
-     * @param account The address of the account to check the balance of.
-     */
-    function totalBalance(address account) external view returns (uint256 amount);
-
-    /**
      * @notice Returns the address of the BloomPool contract.
      * @return The address of the BloomPool contract.
      */
@@ -83,4 +37,11 @@ interface ILTBY {
      * @return The number of decimals for the token.
      */
     function decimals() external view returns (uint8);
+
+    /**
+     * @notice Total Supply of the token.
+     * @param id The id of the token.
+     * @param account The address of the account to check.
+     */
+    function totalSupply(uint256 id, address account) external view returns (uint256);
 }
