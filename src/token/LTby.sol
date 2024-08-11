@@ -32,7 +32,7 @@ contract LTby is ILTBY, ERC1155 {
     uint8 private immutable _decimals;
 
     /// @notice Mapping of the user's total supply of LTby.
-    mapping(uint256 => mapping(address => uint256)) private _totalSupply;
+    mapping(uint256 => uint256) private _totalSupply;
 
     /*///////////////////////////////////////////////////////////////
                                 Modifiers    
@@ -57,12 +57,12 @@ contract LTby is ILTBY, ERC1155 {
     //////////////////////////////////////////////////////////////*/
 
     function mint(uint256 id, address account, uint256 amount) external onlyBloom {
-        _totalSupply[id][account] += amount;
+        _totalSupply[id] += amount;
         _mint(account, 0, amount, "");
     }
 
     function burn(uint256 id, address account, uint256 amount) external onlyBloom {
-        _totalSupply[id][account] -= amount;
+        _totalSupply[id] -= amount;
         _burn(account, 0, amount);
     }
 
@@ -87,8 +87,8 @@ contract LTby is ILTBY, ERC1155 {
     }
 
     /// @inheritdoc ILTBY
-    function totalSupply(uint256 id, address account) external view returns (uint256) {
-        return _totalSupply[id][account];
+    function totalSupply(uint256 id) external view returns (uint256) {
+        return _totalSupply[id];
     }
 
     /// @inheritdoc ERC1155
