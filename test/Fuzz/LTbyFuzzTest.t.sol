@@ -18,42 +18,19 @@ contract LTbyFuzzTest is BloomTestSetup {
         super.setUp();
     }
 
-    function testFuzzOpen(uint256 amount) public {
+    function testMint(uint256 amount) public {
         vm.startPrank(address(bloomPool));
-        ltby.open(alice, amount);
+        ltby.mint(0, alice, amount);
+
         assertEq(ltby.balanceOf(alice, 0), amount);
-        assertEq(ltby.openBalance(alice), amount);
+        assertEq(ltby.totalSupply(0, alice), amount);
     }
 
-    function testFuzzStage(uint256 openAmount, uint256 matchAmount) public {
-        vm.assume(openAmount >= matchAmount);
+    function testBurn(uint256 startAmount, uint256 burnAmount) public {
+        vm.assume(startAmount >= burnAmount);
 
         vm.startPrank(address(bloomPool));
-        ltby.open(alice, openAmount);
-        ltby.stage(alice, matchAmount);
-
-        // Open balance should be reduced by the match amount
-        assertEq(ltby.openBalance(alice), openAmount - matchAmount);
-        assertEq(ltby.matchedBalance(alice), matchAmount);
-    }
-
-    function testFuzzOpenClose(uint256 openAmount, uint256 closeAmount) public {
-        vm.assume(openAmount >= closeAmount);
-
-        vm.startPrank(address(bloomPool));
-        ltby.open(alice, openAmount);
-        ltby.close(alice, 0, closeAmount);
-        assertEq(ltby.openBalance(alice), openAmount - closeAmount);
-    }
-
-    function testFuzzMatchClose(uint256 openAmount, uint256 matchAmount, uint256 closeAmount) public {
-        vm.assume(openAmount >= matchAmount);
-        vm.assume(matchAmount >= closeAmount);
-
-        vm.startPrank(address(bloomPool));
-        ltby.open(alice, openAmount);
-        ltby.stage(alice, matchAmount);
-        ltby.close(alice, 1, closeAmount);
-        assertEq(ltby.matchedBalance(alice), matchAmount - closeAmount);
+        ltby.mint(0, alice, startAmount);
+        ltby.burn(0, alice, burnAmount);
     }
 }

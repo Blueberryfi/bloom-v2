@@ -82,27 +82,14 @@ contract LTby is ILTBY, ERC1155 {
                             Functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @inheritdoc ILTBY
-    function open(address account, uint256 amount) external onlyBloom {
-        _mint(account, uint256(IOrderbook.OrderType.OPEN), amount, "");
+    function mint(uint256 id, address account, uint256 amount) external onlyBloom {
+        _totalSupply[id][account] += amount;
+        _mint(account, 0, amount, "");
     }
 
-    /// @inheritdoc ILTBY
-    function close(
-        address account,
-        uint256 id,
-        uint256 amount
-    ) external onlyBloom {
-        _burn(account, id, amount);
-        if (id >= uint256(IOrderbook.OrderType.LIVE)) {
-            _totalSupply[id] -= amount;
-        }
-    }
-
-    /// @inheritdoc ILTBY
-    function stage(address account, uint256 amount) external onlyBloom {
-        _burn(account, uint256(IOrderbook.OrderType.OPEN), amount);
-        _mint(account, uint256(IOrderbook.OrderType.MATCHED), amount, "");
+    function burn(uint256 id, address account, uint256 amount) external onlyBloom {
+        _totalSupply[id][account] -= amount;
+        _burn(account, 0, amount);
     }
 
     function swapIn(
@@ -130,30 +117,6 @@ contract LTby is ILTBY, ERC1155 {
         _burn(account, uint256(IOrderbook.OrderType.MATCHED), stableAmount);
         _mint(account, id, stableAmount, "");
         _totalSupply[id] += stableAmount;
-    }
-
-    /// @inheritdoc ILTBY
-    function openBalance(address account) public view returns (uint256) {
-        return balanceOf(account, uint256(IOrderbook.OrderType.OPEN));
-    }
-
-    /// @inheritdoc ILTBY
-    function matchedBalance(address account) public view returns (uint256) {
-        return balanceOf(account, uint256(IOrderbook.OrderType.MATCHED));
-    }
-
-    /// @inheritdoc ILTBY
-    function liveBalance(address account) public view returns (uint256) {
-        return balanceOf(account, uint256(IOrderbook.OrderType.LIVE));
-    }
-
-    /// @inheritdoc ILTBY
-    function totalBalance(
-        address account
-    ) external view returns (uint256 amount) {
-        amount += openBalance(account);
-        amount += matchedBalance(account);
-        amount += liveBalance(account);
     }
 
     function getRate(uint256 id) public view returns (uint256) {
@@ -198,16 +161,13 @@ contract LTby is ILTBY, ERC1155 {
         return _decimals;
     }
 
+    /// @inheritdoc ILTBY
+    function totalSupply(uint256 id, address account) external view returns (uint256) {
+        return _totalSupply[id][account];
+    }
+
     /// @inheritdoc ERC1155
-    function uri(
-        uint256 id
-    ) public view virtual override returns (string memory) {
-        if (id == 0) {
-            return "https://bloom.garden/open";
-        }
-        if (id == 1) {
-            return "https://bloom.garden/matched";
-        }
+    function uri(uint256 /*id*/ ) public view virtual override returns (string memory) {
         return "https://bloom.garden/live";
     }
 }

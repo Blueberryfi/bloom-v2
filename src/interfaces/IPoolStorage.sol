@@ -37,9 +37,6 @@ interface IPoolStorage {
     /// @notice Returns the address of the lTby token.
     function lTby() external view returns (address);
 
-    /// @notice Returns the address of the bTby token.
-    function bTby() external view returns (address);
-
     /// @notice Returns the address of the Oracle contract.
     function oracle() external view returns (address);
 

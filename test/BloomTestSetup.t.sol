@@ -14,7 +14,6 @@ import {Test} from "forge-std/Test.sol";
 import {BloomFactory} from "@bloom-v2/BloomFactory.sol";
 import {BloomPool} from "@bloom-v2/BloomPool.sol";
 import {LTby} from "@bloom-v2/token/LTby.sol";
-import {BTby} from "@bloom-v2/token/BTby.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 
@@ -22,7 +21,6 @@ abstract contract BloomTestSetup is Test {
     BloomFactory internal bloomFactory;
     BloomPool internal bloomPool;
     LTby internal ltby;
-    BTby internal btby;
     MockERC20 internal stable;
     MockERC20 internal billToken;
 
@@ -45,7 +43,6 @@ abstract contract BloomTestSetup is Test {
         vm.stopPrank();
 
         ltby = LTby(bloomPool.lTby());
-        btby = BTby(bloomPool.bTby());
         assertNotEq(address(bloomPool), address(0));
     }
 

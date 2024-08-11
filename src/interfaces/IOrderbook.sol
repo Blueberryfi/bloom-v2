@@ -41,10 +41,30 @@ interface IOrderbook {
     /**
      * @notice Emitted when a user kills a lend order.
      * @param account The address of the user who created the lend order.
-     * @param id The unique identifier of the lend order.
      * @param amount The amount of underlying assets returned to the user.
      */
-    event OrderKilled(address indexed account, uint256 id, uint256 amount);
+    event OrderKilled(address indexed account, uint256 amount);
+
+    /**
+     * @notice Emitted when idle capital is increased.
+     * @param account Address of the borrowers account who's idle capital is increased.
+     * @param amount Amount of idle capital increased.
+     */
+    event IdleCapitalIncreased(address indexed account, uint256 amount);
+
+    /**
+     * @notice Emitted when idle capital is decreased.
+     * @param account Address of the borrowers account who's idle capital is decreased.
+     * @param amount Amount of idle capital decreased.
+     */
+    event IdleCapitalDecreased(address indexed account, uint256 amount);
+
+    /**
+     * @notice Emitted when idle capital is withdrawn from the system.
+     * @param account Address of the borrowers account who's idle capital is withdrawn.
+     * @param amount Amount of idle capital withdrawn.
+     */
+    event IdleCapitalWithdrawn(address indexed account, uint256 amount);
 
     /**
      *
@@ -84,17 +104,6 @@ interface IOrderbook {
     }
 
     /*///////////////////////////////////////////////////////////////
-                                Enums
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Enum to differentiate between the different types of orders
-    enum OrderType {
-        OPEN, // All open orders will have an id of 0
-        MATCHED, // All matched orders will have an id of 1
-        LIVE // All live orders will have a blended id of 2 and the orders start timestamp
-    }
-
-    /*///////////////////////////////////////////////////////////////
                             Functions
     //////////////////////////////////////////////////////////////*/
 
@@ -131,16 +140,18 @@ interface IOrderbook {
     ) external returns (uint256 filled);
 
     /**
-     * @notice Allows users to cancel their lend orders and withdraw their underlying assets.
-     * @dev If an order is matched by multiple borrowers, borrower matches must be closed fully in a LIFO manner.
-     * @param orderId The unique identifier of the lend order.
+     * @notice Allows users to cancel their open lend order and withdraw their underlying assets.
      * @param amount The amount of underlying assets to remove from your order.
-     * @return amountKilled The total amount of underlying assets removed from the order.
      */
-    function killOrder(
-        uint256 orderId,
-        uint256 amount
-    ) external returns (uint256 amountKilled);
+    function killOpenOrder(uint256 amount) external;
+
+    /**
+     * @notice Allows users to cancel their match lend orders and withdraw their underlying assets.
+     * @dev If an order is matched by multiple borrowers, borrower matches must be closed fully in a LIFO manner.
+     * @param amount The amount of underlying assets to remove from your order.
+     * @return totalRemoved The total amount of underlying assets removed from the order.
+     */
+    function killMatchOrder(uint256 amount) external returns (uint256 totalRemoved);
 
     function redeemLender(uint256 id) external;
 
@@ -159,16 +170,38 @@ interface IOrderbook {
      * @notice Returns the matched order details for a users account.
      * @param account The address of the user to get matched orders for.
      * @param index The index of the matched order to get.
-     * @return matchOrder The matched order details in the form of a MatchOrder struct.
+     * @return The matched order details in the form of a MatchOrder struct.
      */
-    function matchOrder(
-        address account,
-        uint256 index
-    ) external view returns (MatchOrder memory matchOrder);
+    function matchedOrder(address account, uint256 index) external view returns (MatchOrder memory);
+
+    /**
+     * @notice Returns the total amount of underlying assets in open orders for a users account.
+     * @param account The address of the user to get the number of open orders for.
+     */
+    function amountOpen(address account) external view returns (uint256);
+
+    /**
+     * @notice Returns the total amount of underlying assets in matched orders for a users account.
+     * @param account The address of the user to get the number of open orders for.
+     */
+    function amountMatched(address account) external view returns (uint256 amount);
 
     /**
      * @notice Returns the number of matched orders for a users account.
      * @param account The address of the user to get the number of matched orders for.
      */
-    function matchOrderCount(address account) external view returns (uint256);
+    function matchedOrderCount(address account) external view returns (uint256);
+
+    /**
+     * @notice Returns the idle capital of the borrower.
+     * @param account Address of the borrower to query idle capital.
+     * @return The idle capital of the borrower.
+     */
+    function idleCapital(address account) external view returns (uint256);
+
+    /**
+     * @notice Decreases the idle capital of the borrower.
+     * @param amount Amount of idle capital to withdraw.
+     */
+    function withdrawIdleCapital(uint256 amount) external;
 }
