@@ -39,9 +39,8 @@ interface ILTBY {
     function decimals() external view returns (uint8);
 
     /**
-     * @notice Total Supply of the token.
+     * @notice Total Supply of the TBY.
      * @param id The id of the token.
-     * @param account The address of the account to check.
      */
-    function totalSupply(uint256 id, address account) external view returns (uint256);
+    function totalSupply(uint256 id) external view returns (uint256);
 }

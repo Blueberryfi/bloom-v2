@@ -23,14 +23,18 @@ contract LTbyFuzzTest is BloomTestSetup {
         ltby.mint(0, alice, amount);
 
         assertEq(ltby.balanceOf(alice, 0), amount);
-        assertEq(ltby.totalSupply(0, alice), amount);
+        assertEq(ltby.totalSupply(0), amount);
     }
 
     function testBurn(uint256 startAmount, uint256 burnAmount) public {
         vm.assume(startAmount >= burnAmount);
-
         vm.startPrank(address(bloomPool));
+
         ltby.mint(0, alice, startAmount);
         ltby.burn(0, alice, burnAmount);
+
+        uint256 expected = startAmount - burnAmount;
+        assertEq(ltby.balanceOf(alice, 0), expected);
+        assertEq(ltby.totalSupply(0), expected);
     }
 }

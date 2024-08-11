@@ -48,6 +48,7 @@ contract LTby is ILTBY, ERC1155 {
 
     mapping(uint256 => TbyMaturity) private _idToMaturity;
 
+    /// @notice Mapping of the user's total supply of LTby.
     mapping(uint256 => uint256) private _totalSupply;
 
     uint256 private _lastMintedId;
@@ -72,10 +73,8 @@ contract LTby is ILTBY, ERC1155 {
         _oracle = oracle_;
         _decimals = decimals_;
 
-        // Initialize the last minted and matured id's to start right before the first live id.
-        uint256 startId = uint256(IOrderbook.OrderType.MATCHED);
-        _lastMintedId = startId;
-        _lastMaturedId = startId;
+        _lastMintedId = 0;
+        _lastMaturedId = 0;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -83,12 +82,12 @@ contract LTby is ILTBY, ERC1155 {
     //////////////////////////////////////////////////////////////*/
 
     function mint(uint256 id, address account, uint256 amount) external onlyBloom {
-        _totalSupply[id][account] += amount;
+        _totalSupply[id] += amount;
         _mint(account, 0, amount, "");
     }
 
     function burn(uint256 id, address account, uint256 amount) external onlyBloom {
-        _totalSupply[id][account] -= amount;
+        _totalSupply[id] -= amount;
         _burn(account, 0, amount);
     }
 
@@ -114,7 +113,6 @@ contract LTby is ILTBY, ERC1155 {
             borrowerList.push(Borrower(borrowers[i], amounts[i]));
         }
 
-        _burn(account, uint256(IOrderbook.OrderType.MATCHED), stableAmount);
         _mint(account, id, stableAmount, "");
         _totalSupply[id] += stableAmount;
     }
@@ -135,7 +133,6 @@ contract LTby is ILTBY, ERC1155 {
         uint256 id,
         address account
     ) public view returns (uint256) {
-        require(id >= uint256(IOrderbook.OrderType.LIVE), Errors.InvalidId());
         uint256 balance = balanceOf(account, id);
         uint256 total = _totalSupply[id];
         return (balance * 1e6) / total;
@@ -162,8 +159,8 @@ contract LTby is ILTBY, ERC1155 {
     }
 
     /// @inheritdoc ILTBY
-    function totalSupply(uint256 id, address account) external view returns (uint256) {
-        return _totalSupply[id][account];
+    function totalSupply(uint256 id) external view returns (uint256) {
+        return _totalSupply[id];
     }
 
     /// @inheritdoc ERC1155
