@@ -31,12 +31,7 @@ interface IOrderbook {
      * @param leverage The leverage amount for the borrower at the time the order was matched.
      * @param amount The amount of underlying assets filled in the order.
      */
-    event OrderFilled(
-        address indexed account,
-        address indexed borrower,
-        uint256 leverage,
-        uint256 amount
-    );
+    event OrderFilled(address indexed account, address indexed borrower, uint256 leverage, uint256 amount);
 
     /**
      * @notice Emitted when a user kills a lend order.
@@ -65,18 +60,6 @@ interface IOrderbook {
      * @param amount Amount of idle capital withdrawn.
      */
     event IdleCapitalWithdrawn(address indexed account, uint256 amount);
-
-    /**
-     *
-     * @param id The unique identifier of the TBY.
-     * @param account The address of the user who swapped in.
-     * @param amount Amount of stable tokens swapped in.
-     */
-    event MarketMakerSwappedIn(
-        uint256 indexed id,
-        address indexed account,
-        uint256 amount
-    );
 
     /*///////////////////////////////////////////////////////////////
                                 Structs
@@ -122,10 +105,7 @@ interface IOrderbook {
      * @param amount The maximum amount of underlying assets to fill orders with.
      * @return filled The total amount of underlying assets filled.
      */
-    function fillOrder(
-        address account,
-        uint256 amount
-    ) external returns (uint256 filled);
+    function fillOrder(address account, uint256 amount) external returns (uint256 filled);
 
     /**
      * @notice Allows borrowers to fill lend orders with a specified amount of underlying assets.
@@ -134,10 +114,7 @@ interface IOrderbook {
      * @param amount The maximum amount of underlying assets to fill orders with.
      * @return filled The total amount of underlying assets filled.
      */
-    function fillOrders(
-        address[] calldata accounts,
-        uint256 amount
-    ) external returns (uint256 filled);
+    function fillOrders(address[] calldata accounts, uint256 amount) external returns (uint256 filled);
 
     /**
      * @notice Allows users to cancel their open lend order and withdraw their underlying assets.
@@ -152,10 +129,6 @@ interface IOrderbook {
      * @return totalRemoved The total amount of underlying assets removed from the order.
      */
     function killMatchOrder(uint256 amount) external returns (uint256 totalRemoved);
-
-    function redeemLender(uint256 id) external;
-
-    function redeemBorrower(uint256 id) external;
 
     /// @notice Returns the current leverage value for the borrower scaled to 1e4.
     function leverage() external view returns (uint256);

@@ -119,16 +119,12 @@ abstract contract PoolStorage is IPoolStorage {
     }
 
     /// @inheritdoc IPoolStorage
-    function isKYCedBorrower(
-        address account
-    ) public view override returns (bool) {
+    function isKYCedBorrower(address account) public view override returns (bool) {
         return _borrowers[account];
     }
 
     /// @inheritdoc IPoolStorage
-    function isKYCedMarketMaker(
-        address account
-    ) public view override returns (bool) {
+    function isKYCedMarketMaker(address account) public view override returns (bool) {
         return _marketMakers[account];
     }
 }

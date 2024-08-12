@@ -38,9 +38,7 @@ contract BloomOracle is IOracle, Ownable2Step {
 
     function getPrice(address asset) external view override returns (uint256) {}
 
-    function tbyRatePerSecond(
-        address asset
-    ) external view override returns (uint256) {
+    function tbyRatePerSecond(address asset) external view override returns (uint256) {
         return _tbyRatePerSecond[asset];
     }
 

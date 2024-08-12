@@ -49,7 +49,7 @@ library BloomErrors {
     error InvalidId();
 
     /// @notice Emitted when a borrower or lender has no shares of lTBY or bTBY.
-    error ZeroShare();
+    error ZeroShares();
 
     /*///////////////////////////////////////////////////////////////
                             General Errors    
