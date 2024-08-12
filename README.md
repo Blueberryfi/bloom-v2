@@ -1,66 +1,31 @@
-## Foundry
+## Bloom V2
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Bloom is a public good protocol that bring yields derived from the "risk free" treasury bill rate into the DeFi landscape. Bloom V2 has expanding this idea of permissionless lending into the risk free rate with a novel RWA order-book design that provides a upgraded experience for all participants in the system.
 
-Foundry consists of:
+### Repository Setup
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+1. Clone the repository
 
-## Documentation
+2. Install dependencies
 
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```bash
+forge install
 ```
 
-### Test
+3. Compile the contracts
 
-```shell
-$ forge test
+```bash
+forge compile
 ```
 
-### Format
+4. Run the tests
 
-```shell
-$ forge fmt
+```bash
+forge test
 ```
 
-### Gas Snapshots
+5. Run coverage report
 
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+```bash
+bash coverage.sh
 ```
