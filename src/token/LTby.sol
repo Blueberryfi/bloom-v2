@@ -30,8 +30,6 @@ contract LTby is ILTBY, ERC1155 {
     /// @notice Address of the BloomPool contract.
     address private immutable _bloomPool;
 
-    address private immutable _oracle;
-
     /// @notice The number of decimals for the token.
     uint8 private immutable _decimals;
 
@@ -51,9 +49,8 @@ contract LTby is ILTBY, ERC1155 {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address bloomPool_, address oracle_, uint8 decimals_) {
+    constructor(address bloomPool_, uint8 decimals_) {
         _bloomPool = bloomPool_;
-        _oracle = oracle_;
         _decimals = decimals_;
     }
 

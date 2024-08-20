@@ -15,7 +15,6 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {LTby} from "@bloom-v2/token/LTby.sol";
 import {IPoolStorage} from "@bloom-v2/interfaces/IPoolStorage.sol";
-import {IOracle} from "@bloom-v2/interfaces/IOracle.sol";
 
 /**
  * @title Pool Storage
@@ -28,9 +27,6 @@ abstract contract PoolStorage is IPoolStorage {
 
     /// @notice Addresss of the lTby token
     LTby internal _lTby;
-
-    /// @notice Address of the Oracle contract.
-    IOracle internal immutable _oracle;
 
     /// @notice Address of the underlying asset of the Pool.
     address internal immutable _asset;
@@ -71,17 +67,15 @@ abstract contract PoolStorage is IPoolStorage {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address asset_, address rwa_, address oracle_) {
+    constructor(address asset_, address rwa_) {
         _asset = asset_;
         _rwa = rwa_;
 
         uint8 decimals = IERC20Metadata(asset_).decimals();
-        _lTby = new LTby(address(this), oracle_, decimals);
+        _lTby = new LTby(address(this), decimals);
 
         _assetDecimals = decimals;
         _rwaDecimals = IERC20Metadata(rwa_).decimals();
-
-        _oracle = IOracle(oracle_);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -91,11 +85,6 @@ abstract contract PoolStorage is IPoolStorage {
     /// @inheritdoc IPoolStorage
     function lTby() external view returns (address) {
         return address(_lTby);
-    }
-
-    /// @inheritdoc IPoolStorage
-    function oracle() external view override returns (address) {
-        return address(_oracle);
     }
 
     /// @inheritdoc IPoolStorage

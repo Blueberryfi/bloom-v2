@@ -12,6 +12,7 @@ pragma solidity ^0.8.26;
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
+import {AggregatorV3Interface} from "@chainlink/shared/interfaces/AggregatorV3Interface.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -36,6 +37,15 @@ contract BloomPool is IBloomPool, Orderbook, Ownable2Step {
     /// @notice The last TBY id that was minted.
     uint256 private _lastMintedId;
 
+    /// @notice Price feed for the RWA token.
+    address private immutable _rwaPriceFeed;
+
+    /// @notice Decimals for the RWA price feed.
+    uint8 private immutable _rwaPriceFeedDecimals;
+
+    /// @notice The spread between the rate of the TBY and the rate of the RWA token.
+    uint256 private _spread;
+
     /// @notice Mapping of TBY ids to the maturity range.
     mapping(uint256 => TbyMaturity) private _idToMaturity;
 
@@ -58,12 +68,23 @@ contract BloomPool is IBloomPool, Orderbook, Ownable2Step {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address asset_, address rwa_, address oracle_, uint256 initLeverage, address owner_)
-        Ownable(owner_)
-        Orderbook(asset_, rwa_, oracle_, initLeverage)
-    {
+    constructor(
+        address asset_,
+        address rwa_,
+        address rwaPriceFeed,
+        uint256 initLeverage,
+        uint256 spread,
+        address owner_
+    ) Ownable(owner_) Orderbook(asset_, rwa_, initLeverage) {
         require(owner_ != address(0), Errors.ZeroAddress());
-        require(initLeverage >= 1e18 && initLeverage < 100e18, Errors.InvalidLeverage());
+        require(
+            initLeverage >= 1e18 && initLeverage < 100e18,
+            Errors.InvalidLeverage()
+        );
+
+        _rwaPriceFeedDecimals = AggregatorV3Interface(rwaPriceFeed).decimals();
+        _rwaPriceFeed = rwaPriceFeed;
+        _spread = spread;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -80,18 +101,17 @@ contract BloomPool is IBloomPool, Orderbook, Ownable2Step {
      * @return id The id of the TBY that was minted.
      * @return amountSwapped The amount of assets swapped in.
      */
-    function swapIn(address[] memory accounts, uint256 assetAmount)
-        external
-        KycMarketMaker
-        returns (uint256 id, uint256 amountSwapped)
-    {
+    function swapIn(
+        address[] memory accounts,
+        uint256 assetAmount
+    ) external KycMarketMaker returns (uint256 id, uint256 amountSwapped) {
         // Get the TBY id to mint
         id = _lastMintedId;
         TbyMaturity memory maturity = _idToMaturity[id];
 
-        if (block.timestamp > maturity.start) {
+        if (block.timestamp > maturity.start + 48 hours) {
             id = _lastMintedId++;
-            uint128 start = uint128(block.timestamp + 48 hours);
+            uint128 start = uint128(block.timestamp);
             uint128 end = start + 180 days;
             _idToMaturity[id] = TbyMaturity(start, end);
         }
@@ -99,7 +119,11 @@ contract BloomPool is IBloomPool, Orderbook, Ownable2Step {
         // Iterate through the accounts and convert the matched orders to live TBYs.
         uint256 len = accounts.length;
         for (uint256 i = 0; i != len; ++i) {
-            uint256 removedAmount = _convertMatchOrders(id, accounts[i], assetAmount);
+            uint256 removedAmount = _convertMatchOrders(
+                id,
+                accounts[i],
+                assetAmount
+            );
             assetAmount -= removedAmount;
             amountSwapped += removedAmount;
             if (assetAmount == 0) break;
@@ -108,7 +132,7 @@ contract BloomPool is IBloomPool, Orderbook, Ownable2Step {
 
         // Initialize the starting price of the RWA token if it has not been set
         RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
-        uint256 currentPrice = _oracle.getPrice(_rwa);
+        uint256 currentPrice = _rwaPrice();
 
         if (rwaPrice.startPrice == 0) {
             _tbyIdToRwaPrice[id].startPrice = uint128(currentPrice);
@@ -129,13 +153,22 @@ contract BloomPool is IBloomPool, Orderbook, Ownable2Step {
      * @param rwaAmount The amount of rwa tokens to remove.
      * @return assetAmount The amount of assets swapped out.
      */
-    function swapOut(uint256 id, uint256 rwaAmount) external KycMarketMaker returns (uint256 assetAmount) {
+    function swapOut(
+        uint256 id,
+        uint256 rwaAmount
+    ) external KycMarketMaker returns (uint256 assetAmount) {
         require(rwaAmount > 0, Errors.ZeroAmount());
-        require(IERC20(_rwa).balanceOf(msg.sender) >= rwaAmount, Errors.InsufficientBalance());
-        require(_idToMaturity[id].end <= block.timestamp, Errors.TBYNotMatured());
+        require(
+            IERC20(_rwa).balanceOf(msg.sender) >= rwaAmount,
+            Errors.InsufficientBalance()
+        );
+        require(
+            _idToMaturity[id].end <= block.timestamp,
+            Errors.TBYNotMatured()
+        );
 
         RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
-        uint256 currentPrice = _oracle.getPrice(_rwa);
+        uint256 currentPrice = _rwaPrice();
 
         if (rwaPrice.endPrice == 0) {
             _tbyIdToRwaPrice[id].endPrice = uint128(currentPrice);
@@ -176,23 +209,48 @@ contract BloomPool is IBloomPool, Orderbook, Ownable2Step {
         uint256 borrowerShare = borrowerShareOf(id, msg.sender);
         uint256 reward = borrowerReturns.mulWad(borrowerShare);
         _tbyBorrowerReturns[id] -= reward;
-        _borrowerAmounts[msg.sender][id] -= borrowerShare.mulWad(_borrowerAmounts[msg.sender][id]);
+        _borrowerAmounts[msg.sender][id] -= borrowerShare.mulWad(
+            _borrowerAmounts[msg.sender][id]
+        );
         IERC20(_asset).safeTransfer(msg.sender, reward);
     }
 
     /// @inheritdoc IBloomPool
-    function borrowerShareOf(uint256 id, address account) public view override returns (uint256) {
+    function borrowerShareOf(
+        uint256 id,
+        address account
+    ) public view override returns (uint256) {
         return _borrowerAmounts[account][id].divWadUp(_idToTotalMatched[id]);
     }
 
     /// @inheritdoc IBloomPool
     function getRate(uint256 id) public view override returns (uint256) {
         TbyMaturity memory maturity = _idToMaturity[id];
+        RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
+
         uint256 time = block.timestamp;
+        // If the TBY has not started accruing interest, return 1e18.
         if (time <= maturity.start) {
             return 1e18;
         }
-        return 1e18 + _oracle.tbyRatePerSecond(address(this)) * (time - maturity.start);
+
+        // If the TBY has matured, and is eligible for redemption, calculate price based on the end price.
+        if (time >= maturity.end && rwaPrice.endPrice != 0) {
+            return 1e18 + (rwaPrice.endPrice * _spread) / rwaPrice.startPrice;
+        }
+
+        // If the TBY has matured, and is not-eligible for redemption due to market maker delay,
+        //     calculate price based on the current price of the RWA token via the price feed.
+        return 1e18 + (_rwaPrice() * _spread) / rwaPrice.startPrice;
+    }
+
+    /// @notice Returns the current price of the RWA token.
+    function _rwaPrice() public view returns (uint256) {
+        (, int256 answer, , uint256 updatedAt, ) = AggregatorV3Interface(
+            _rwaPriceFeed
+        ).latestRoundData();
+        require(updatedAt >= block.timestamp - 1 days, Errors.OutOfDate());
+        return uint256(answer) * 10 ** (Math.WAD - _rwaPriceFeedDecimals);
     }
 
     /**
@@ -221,12 +279,28 @@ contract BloomPool is IBloomPool, Orderbook, Ownable2Step {
      * @param leverage Updated leverage
      */
     function setLeverage(uint256 leverage) external onlyOwner {
-        require(leverage >= 1e18 && leverage < 100e18, Errors.InvalidLeverage());
+        require(
+            leverage >= 1e18 && leverage < 100e18,
+            Errors.InvalidLeverage()
+        );
         _leverage = leverage;
         emit LeverageSet(leverage);
     }
 
-    function _convertMatchOrders(uint256 id, address account, uint256 amount) internal returns (uint256) {
+    /**
+     * @notice Updates the spread between the TBY rate and the RWA rate.
+     * @param spread The new spread value.
+     */
+    function setSpread(uint256 spread) external onlyOwner {
+        _spread = spread;
+        emit SpreadUpdated(spread);
+    }
+
+    function _convertMatchOrders(
+        uint256 id,
+        address account,
+        uint256 amount
+    ) internal returns (uint256) {
         MatchOrder[] storage matches = _userMatchedOrders[account];
         uint256 remainingAmount = amount;
         uint256 borrowerAmountConverted = 0;
@@ -238,7 +312,9 @@ contract BloomPool is IBloomPool, Orderbook, Ownable2Step {
             if (remainingAmount >= matches[index].amount) {
                 remainingAmount -= matches[index].amount;
 
-                uint256 borrowerAmount = matches[index].amount.divWadUp(matches[index].leverage);
+                uint256 borrowerAmount = matches[index].amount.divWadUp(
+                    matches[index].leverage
+                );
 
                 _borrowerAmounts[account][id] += borrowerAmount;
                 borrowerAmountConverted += borrowerAmount;

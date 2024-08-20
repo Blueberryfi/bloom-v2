@@ -49,9 +49,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address asset_, address rwa_, address oracle_, uint256 initLeverage)
-        PoolStorage(asset_, rwa_, oracle_)
-    {
+    constructor(address asset_, address rwa_, uint256 initLeverage) PoolStorage(asset_, rwa_) {
         _leverage = initLeverage;
     }
 

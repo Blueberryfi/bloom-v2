@@ -63,4 +63,11 @@ library BloomErrors {
 
     /// @notice Emiited when a user tries to spend more than their balance.
     error InsufficientBalance();
+
+    /*///////////////////////////////////////////////////////////////
+                            Price Feeds    
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Emitted when the rwa price feed is out of date.
+    error OutOfDate();
 }

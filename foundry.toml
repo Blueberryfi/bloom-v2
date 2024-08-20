@@ -7,6 +7,7 @@ via-ir = true
 remappings = [
     "@bloom-v2/=src/",
     "@solady/=lib/solady/src/",
+    "@chainlink/=lib/chainlink/contracts/src/v0.8/",
 ]
 
 [fuzz]

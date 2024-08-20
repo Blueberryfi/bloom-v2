@@ -37,9 +37,6 @@ interface IPoolStorage {
     /// @notice Returns the address of the lTby token.
     function lTby() external view returns (address);
 
-    /// @notice Returns the address of the Oracle contract.
-    function oracle() external view returns (address);
-
     /// @notice Returns the address of the underlying asset of the pool.
     function asset() external view returns (address);
 
