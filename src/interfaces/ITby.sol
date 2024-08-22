@@ -43,7 +43,4 @@ interface ITby {
      * @param id The id of the token.
      */
     function totalSupply(uint256 id) external view returns (uint256);
-
-    /// @notice Returns the share of the account in the TBY.
-    function shareOf(uint256 id, address account) external view returns (uint256);
 }

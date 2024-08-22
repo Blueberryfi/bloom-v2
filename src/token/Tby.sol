@@ -81,11 +81,6 @@ contract Tby is ITby, ERC1155 {
     }
 
     /// @inheritdoc ITby
-    function shareOf(uint256 id, address account) external view returns (uint256) {
-        return balanceOf(account, id).divWadUp(_totalSupply[id]);
-    }
-
-    /// @inheritdoc ITby
     function bloomPool() external view returns (address) {
         return _bloomPool;
     }
