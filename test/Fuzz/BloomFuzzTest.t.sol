@@ -77,12 +77,6 @@ contract BloomFuzzTest is BloomTestSetup {
         uint256 expectedBorrowAmount = expectedFillAmount.divWadUp(initialLeverage);
 
         vm.startPrank(borrower);
-
-        if (expectedBorrowAmount < 1e6) {
-            vm.expectRevert(Errors.InvalidMatchSize.selector);
-            bloomPool.fillOrder(alice, expectedFillAmount);
-            return;
-        }
         stable.mint(borrower, expectedBorrowAmount);
         stable.approve(address(bloomPool), expectedBorrowAmount);
 
@@ -144,13 +138,6 @@ contract BloomFuzzTest is BloomTestSetup {
         uint256 expectedBorrowAmount = expectedFillAmount.divWadUp(initialLeverage);
 
         vm.startPrank(borrower);
-
-        if (expectedBorrowAmount < 1e6) {
-            vm.expectRevert(Errors.InvalidMatchSize.selector);
-            bloomPool.fillOrders(lenders, expectedFillAmount);
-            return;
-        }
-
         stable.mint(borrower, expectedBorrowAmount);
         stable.approve(address(bloomPool), expectedBorrowAmount);
 
@@ -212,19 +199,16 @@ contract BloomFuzzTest is BloomTestSetup {
         stable.approve(address(bloomPool), borrowerAmount);
         bloomPool.fillOrder(alice, orderSize);
 
-        // Amount killed is always going to be equal the order size on a single matched order.
-        uint256 amountKilled = orderSize > killSize ? 0 : killSize;
-
         // Kill the matched order
         vm.startPrank(alice);
         vm.expectEmit(true, false, false, true);
-        emit IOrderbook.OrderKilled(alice, amountKilled);
+        emit IOrderbook.OrderKilled(alice, killSize);
         bloomPool.killMatchOrder(killSize);
 
-        assertEq(bloomPool.amountMatched(alice), orderSize - amountKilled);
-        assertEq(bloomPool.matchedDepth(), orderSize - amountKilled);
-        assertEq(stable.balanceOf(alice), amountKilled);
-        assertEq(bloomPool.idleCapital(borrower), amountKilled.divWadUp(initialLeverage));
+        assertEq(bloomPool.amountMatched(alice), orderSize - killSize);
+        assertEq(bloomPool.matchedDepth(), orderSize - killSize);
+        assertEq(stable.balanceOf(alice), killSize);
+        assertEq(bloomPool.idleCapital(borrower), killSize.divWadUp(initialLeverage));
     }
 
     function testFuzz_KillMultiOrder(uint256[3] memory orders, uint256 killAmount) public {
@@ -233,7 +217,6 @@ contract BloomFuzzTest is BloomTestSetup {
         orders[2] = bound(orders[2], 100e6, 100_000_000e6);
         killAmount = bound(killAmount, 1e6, 300_000_000e6);
         vm.assume(orders[0] + orders[1] + orders[2] >= killAmount);
-        vm.assume(killAmount >= orders[0]);
 
         address borrower2 = makeAddr("borrower2");
         address borrower3 = makeAddr("borrower3");
@@ -271,17 +254,24 @@ contract BloomFuzzTest is BloomTestSetup {
             borrowersKilled = 2;
         } else if (amountKilled >= orders[0] + orders[1] + orders[2]) {
             borrowersKilled = 3;
+        } else {
+            borrowersKilled = 0;
         }
 
         assertEq(bloomPool.amountMatched(alice), orders[0] + orders[1] + orders[2] - amountKilled);
         assertEq(bloomPool.matchedDepth(), orders[0] + orders[1] + orders[2] - amountKilled);
         assertEq(stable.balanceOf(alice), amountKilled);
 
-        if (borrowersKilled == 1) {
+        if (borrowersKilled == 0) {
+            assertEq(bloomPool.idleCapital(borrower3), killAmount.divWadUp(initialLeverage));
+            assertEq(bloomPool.matchedOrder(alice, 2).amount, orders[2] - amountKilled);
+        } else if (borrowersKilled == 1) {
             assertEq(bloomPool.idleCapital(borrower3), orders[2].divWadUp(initialLeverage));
+            assertEq(bloomPool.matchedOrder(alice, 1).amount, orders[2] + orders[1] - amountKilled);
         } else if (borrowersKilled == 2) {
             assertEq(bloomPool.idleCapital(borrower3), orders[2].divWadUp(initialLeverage));
             assertEq(bloomPool.idleCapital(borrower2), orders[1].divWadUp(initialLeverage));
+            assertEq(bloomPool.matchedOrder(alice, 0).amount, orders[0] + orders[1] + orders[2] - amountKilled);
         } else if (borrowersKilled == 3) {
             assertEq(bloomPool.idleCapital(borrower3), orders[2].divWadUp(initialLeverage));
             assertEq(bloomPool.idleCapital(borrower2), orders[1].divWadUp(initialLeverage));

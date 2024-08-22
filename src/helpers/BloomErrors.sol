@@ -15,6 +15,19 @@ pragma solidity ^0.8.26;
  */
 library BloomErrors {
     /*///////////////////////////////////////////////////////////////
+                            Pool Errors
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Emitted when a user tries to redeem a TBY that is not redeemable.
+    error TBYNotRedeemable();
+
+    /// @notice Emitted when a user tries to redeem a TBY but has no rewards to claim.
+    error ZeroRewards();
+
+    /// @notice Emitted when the owner tries to set the spread to a value that is too large.
+    error InvalidSpread();
+
+    /*///////////////////////////////////////////////////////////////
                             Orderbook Errors    
     //////////////////////////////////////////////////////////////*/
 
@@ -70,4 +83,7 @@ library BloomErrors {
 
     /// @notice Emitted when the rwa price feed is out of date.
     error OutOfDate();
+
+    /// @notice Invalid Price Feed
+    error InvalidPriceFeed();
 }

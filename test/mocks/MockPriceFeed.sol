@@ -22,9 +22,13 @@ contract MockPriceFeed {
         _decimals = d;
     }
 
-    function setLatestRound(uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
-        external
-    {
+    function setLatestRoundData(
+        uint80 roundId,
+        int256 answer,
+        uint256 startedAt,
+        uint256 updatedAt,
+        uint80 answeredInRound
+    ) external {
         _roundId = roundId;
         _answer = answer;
         _startedAt = startedAt;
@@ -32,11 +36,7 @@ contract MockPriceFeed {
         _answeredInRound = answeredInRound;
     }
 
-    function lastestRound()
-        external
-        view
-        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
-    {
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (_roundId, _answer, _startedAt, _updatedAt, _answeredInRound);
     }
 

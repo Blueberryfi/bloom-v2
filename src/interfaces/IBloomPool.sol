@@ -20,6 +20,17 @@ interface IBloomPool is IOrderbook, IPoolStorage {
     /*///////////////////////////////////////////////////////////////
                             Structs
     //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Struct representing the collateral backed by a TBY.
+     * @param assetAmount The amount of underlying asset collateral.
+     * @param rwaAmount The amount of rwa asset collateral.
+     */
+    struct TbyCollateral {
+        uint128 assetAmount;
+        uint128 rwaAmount;
+    }
+
     /**
      * @notice Struct representing the maturity range of a TBY.
      * @param start The start timestamp in seconds of the maturity range.
@@ -73,23 +84,18 @@ interface IBloomPool is IOrderbook, IPoolStorage {
      * @notice Redeem the lender's share of rewards generated from the TBY at its maturity.
      * @dev Rewards generated from TBYs are only claimable by the holder of the TBY at maturity.
      * @param id The id of the TBY to redeem.
+     * @param amount The amount of TBYs to redeem.
+     * @return reward The amount of rewards for the lender.
      */
-    function redeemLender(uint256 id) external;
+    function redeemLender(uint256 id, uint256 amount) external returns (uint256 reward);
 
     /**
      * @notice Redeem the borrowers's share of rewards generated from the TBY at its maturity.
      * @dev Rewards generated from TBYs are only claimable by the holder of the TBY at maturity.
      * @param id The id of the TBY to redeem.
+     * @return reward The amount of rewards for the borrower.
      */
-    function redeemBorrower(uint256 id) external;
-
-    /**
-     * @notice Returns the share of matched orders for a borrower based on the TBYs id.
-     * @dev TODO: Add scaling notes.
-     * @param id The id of the TBY.
-     * @param account The address of the borrower to check the share of.
-     */
-    function borrowerShareOf(uint256 id, address account) external view returns (uint256);
+    function redeemBorrower(uint256 id) external returns (uint256 reward);
 
     /**
      * @notice Returns the current rate of the TBY in terms of USD.

@@ -83,8 +83,8 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
         _assetDecimals = decimals;
         _rwaDecimals = IERC20Metadata(rwa_).decimals();
 
-        _leverage = initLeverage;
-        _spread = initSpread;
+        _setLeverage(initLeverage);
+        _setSpread(initSpread);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -118,19 +118,16 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
      * @dev Leverage is scaled to 1e18. (20x leverage = 20e18)
      * @param leverage Updated leverage
      */
-    function setLeverage(uint256 leverage) external onlyOwner {
-        require(leverage >= 1e18 && leverage < 100e18, Errors.InvalidLeverage());
-        _leverage = leverage;
-        emit LeverageSet(leverage);
+    function setLeverage(uint256 leverage) public onlyOwner {
+        _setLeverage(leverage);
     }
 
     /**
      * @notice Updates the spread between the TBY rate and the RWA rate.
      * @param spread_ The new spread value.
      */
-    function setSpread(uint256 spread_) external onlyOwner {
-        _spread = spread_;
-        emit SpreadUpdated(spread_);
+    function setSpread(uint256 spread_) public onlyOwner {
+        _setSpread(spread_);
     }
 
     /// @inheritdoc IPoolStorage
@@ -171,5 +168,19 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
     /// @inheritdoc IPoolStorage
     function spread() external view override returns (uint256) {
         return _spread;
+    }
+
+    /// @notice Internal logic to set the leverage.
+    function _setLeverage(uint256 leverage) internal {
+        require(leverage >= 1e18 && leverage < 100e18, Errors.InvalidLeverage());
+        _leverage = leverage;
+        emit LeverageSet(leverage);
+    }
+
+    /// @notice Internal logic to set the spread.
+    function _setSpread(uint256 spread_) internal {
+        require(spread_ >= 0.85e18, Errors.InvalidSpread());
+        _spread = spread_;
+        emit SpreadUpdated(spread_);
     }
 }

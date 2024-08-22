@@ -104,8 +104,6 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         _amountZeroCheck(amount);
         // if the order is already matched we have to account for the borrower's who filled the order.
         // If you kill a match order and there are multiple borrowers, the order will be closed in a LIFO manner.
-        // For each borrow the full amount that was matched must be removed from the order.
-        // In the event that the match is not fully removed, that match will not be removed.
         totalRemoved = _closeMatchOrders(msg.sender, amount);
         IERC20(_asset).safeTransfer(msg.sender, totalRemoved);
 
@@ -159,8 +157,6 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
      */
     function _depositBorrower(uint256 amount) internal {
         uint256 borrowAmount = amount.divWadUp(_leverage);
-
-        require(borrowAmount >= 1e6, Errors.InvalidMatchSize());
         require(IERC20(_asset).balanceOf(msg.sender) >= borrowAmount, Errors.InsufficientBalance());
 
         borrowAmount = _utilizeIdleCapital(msg.sender, borrowAmount);
@@ -191,18 +187,23 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         for (uint256 i = length; i != 0; --i) {
             uint256 index = i - 1;
 
-            if (remainingAmount >= matches[index].amount) {
-                remainingAmount -= matches[index].amount;
-                totalRemoved += matches[index].amount;
+            if (remainingAmount != 0) {
+                uint256 amountToRemove = Math.min(remainingAmount, matches[index].amount);
+                remainingAmount -= amountToRemove;
 
-                uint256 borrowerAmount = matches[index].amount.divWadUp(matches[index].leverage);
+                uint256 borrowerAmount = amountToRemove.divWadUp(matches[index].leverage);
                 _idleCapital[matches[index].borrower] += borrowerAmount;
 
-                matches.pop();
+                if (amountToRemove == matches[index].amount) {
+                    matches.pop();
+                } else {
+                    matches[index].amount -= amountToRemove;
+                }
             } else {
                 break;
             }
         }
+        totalRemoved = amount - remainingAmount;
         _matchedDepth -= totalRemoved;
     }
 

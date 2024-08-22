@@ -41,7 +41,11 @@ abstract contract BloomTestSetup is Test {
         stable = new MockERC20("Mock USDC", "USDC", 6);
         billToken = new MockERC20("Mock T-Bill Token", "bIb01", 18);
 
+        // Start at a non-0 block timestamp
+        skip(1 weeks);
+
         priceFeed = new MockPriceFeed(8);
+        priceFeed.setLatestRoundData(1, 110e8, 0, block.timestamp, 1);
 
         vm.prank(owner);
         bloomPool = bloomFactory.createBloomPool(

@@ -37,10 +37,13 @@ contract BloomPool is IBloomPool, Orderbook {
     uint256 private _lastMintedId;
 
     /// @notice Price feed for the RWA token.
-    address private immutable _rwaPriceFeed;
+    address private _rwaPriceFeed;
 
     /// @notice Decimals for the RWA price feed.
-    uint8 private immutable _rwaPriceFeedDecimals;
+    uint8 private _rwaPriceFeedDecimals;
+
+    /// @notice A mapping of the TBY id to the collateral that is backed by the tokens.
+    mapping(uint256 => TbyCollateral) private _idToCollateral;
 
     /// @notice Mapping of TBY ids to the maturity range.
     mapping(uint256 => TbyMaturity) private _idToMaturity;
@@ -48,17 +51,29 @@ contract BloomPool is IBloomPool, Orderbook {
     /// @notice Mapping of TBY ids to the RWA pricing ranges.
     mapping(uint256 => RwaPrice) private _tbyIdToRwaPrice;
 
-    /// @notice Mapping of TBY ids to the borower's return amount.
-    mapping(uint256 => uint256) private _tbyBorrowerReturns;
+    /// @notice Mapping of borrowers to their token shares for each TBY id.
+    mapping(address => mapping(uint256 => uint256)) private _borrowerAmounts;
+
+    /// @notice A mapping of the TBY id to the total amount of funds contributed by borrowers.
+    mapping(uint256 => uint256) private _idToTotalBorrowed;
 
     /// @notice Mapping of TBY ids to overall lender's return amount.
     mapping(uint256 => uint256) private _tbyLenderReturns;
 
-    /// @notice Mapping of borrowers to their token shares for each TBY id.
-    mapping(address => mapping(uint256 => uint256)) private _borrowerAmounts;
+    /// @notice Mapping of TBY ids to the borower's return amount.
+    mapping(uint256 => uint256) private _tbyBorrowerReturns;
 
-    /// @notice A mapping of the TBY id to the total amount matched by borrowers.
-    mapping(uint256 => uint256) private _idToTotalMatched;
+    /// @notice A mapping of TBY id if the TBY is eligible for redemption.
+    mapping(uint256 => bool) private _isTbyRedeemable;
+
+    /*///////////////////////////////////////////////////////////////
+                            Modifiers   
+    //////////////////////////////////////////////////////////////*/
+
+    modifier isRedeemable(uint256 id) {
+        require(_isTbyRedeemable[id], Errors.TBYNotRedeemable());
+        _;
+    }
 
     /*///////////////////////////////////////////////////////////////
                             Constructor    
@@ -73,10 +88,7 @@ contract BloomPool is IBloomPool, Orderbook {
         address owner_
     ) Orderbook(asset_, rwa_, initLeverage, spread, owner_) {
         require(owner_ != address(0), Errors.ZeroAddress());
-        require(initLeverage >= Math.WAD && initLeverage < 100e18, Errors.InvalidLeverage());
-
-        _rwaPriceFeedDecimals = AggregatorV3Interface(rwaPriceFeed).decimals();
-        _rwaPriceFeed = rwaPriceFeed;
+        _setPriceFeed(rwaPriceFeed);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -84,35 +96,33 @@ contract BloomPool is IBloomPool, Orderbook {
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBloomPool
-    function redeemLender(uint256 id) external override {
-        uint256 lenderReturns = _tbyLenderReturns[id];
-        uint256 share = _tby.shareOf(id, msg.sender);
+    function redeemLender(uint256 id, uint256 amount) external override isRedeemable(id) returns (uint256 reward) {
+        require(_tby.balanceOf(msg.sender, id) >= amount, Errors.InsufficientBalance());
+        uint256 totalSupply = _tby.totalSupply(id);
 
-        require(lenderReturns > 0, Errors.TBYNotMatured());
-        require(share > 0, Errors.ZeroShares());
-
-        uint256 reward = lenderReturns.mulWad(share);
-        uint256 burnAmount = share.mulWad(_tby.totalSupply(id));
+        reward = _tbyLenderReturns[id].mulWad(amount).divWadUp(totalSupply);
+        require(reward > 0, Errors.ZeroRewards());
 
         _tbyLenderReturns[id] -= reward;
-        _tby.burn(id, msg.sender, burnAmount);
+        _tby.burn(id, msg.sender, amount);
 
         IERC20(_asset).safeTransfer(msg.sender, reward);
-
         emit LenderRedeemed(msg.sender, id, reward);
     }
 
     /// @inheritdoc IBloomPool
-    function redeemBorrower(uint256 id) external override {
+    function redeemBorrower(uint256 id) external override isRedeemable(id) returns (uint256 reward) {
         uint256 borrowerReturns = _tbyBorrowerReturns[id];
-        uint256 borrowerShare = borrowerShareOf(id, msg.sender);
-        uint256 reward = borrowerReturns.mulWad(borrowerShare);
+        uint256 totalBorrowed = _idToTotalBorrowed[id];
+        uint256 borrowAmount = _borrowerAmounts[msg.sender][id];
+
+        reward = borrowerReturns.mulWad(borrowAmount).divWadUp(totalBorrowed);
+        require(reward > 0, Errors.ZeroRewards());
 
         _tbyBorrowerReturns[id] -= reward;
-        _borrowerAmounts[msg.sender][id] -= borrowerShare.mulWad(_borrowerAmounts[msg.sender][id]);
+        _borrowerAmounts[msg.sender][id] -= borrowAmount;
 
         IERC20(_asset).safeTransfer(msg.sender, reward);
-
         emit BorrowerRedeemed(msg.sender, id, reward);
     }
 
@@ -145,9 +155,9 @@ contract BloomPool is IBloomPool, Orderbook {
         // Iterate through the accounts and convert the matched orders to live TBYs.
         uint256 len = accounts.length;
         for (uint256 i = 0; i != len; ++i) {
-            uint256 removedAmount = _convertMatchOrders(id, accounts[i], assetAmount);
-            assetAmount -= removedAmount;
-            amountSwapped += removedAmount;
+            uint256 amountUsed = _convertMatchOrders(id, accounts[i], assetAmount);
+            assetAmount -= amountUsed;
+            amountSwapped += amountUsed;
             if (assetAmount == 0) break;
             _tby.mint(id, accounts[i], amountSwapped);
         }
@@ -161,6 +171,8 @@ contract BloomPool is IBloomPool, Orderbook {
         }
 
         uint256 rwaAmount = (currentPrice * amountSwapped) / Math.WAD;
+        _idToCollateral[id] = TbyCollateral(0, uint128(rwaAmount));
+
         IERC20(_rwa).safeTransferFrom(msg.sender, address(this), rwaAmount);
         IERC20(_asset).safeTransfer(msg.sender, amountSwapped);
 
@@ -181,6 +193,7 @@ contract BloomPool is IBloomPool, Orderbook {
         require(_idToMaturity[id].end <= block.timestamp, Errors.TBYNotMatured());
 
         RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
+        TbyCollateral storage collateral = _idToCollateral[id];
         uint256 currentPrice = _rwaPrice();
 
         if (rwaPrice.endPrice == 0) {
@@ -196,15 +209,26 @@ contract BloomPool is IBloomPool, Orderbook {
         _tbyBorrowerReturns[id] += borrowerReturn;
         _tbyLenderReturns[id] += lenderReturn;
 
+        collateral.rwaAmount -= uint128(rwaAmount);
+        collateral.assetAmount += uint128(assetAmount);
+
+        if (collateral.rwaAmount == 0) {
+            _isTbyRedeemable[id] = true;
+        }
+
         IERC20(_asset).safeTransferFrom(msg.sender, address(this), assetAmount);
         IERC20(_rwa).safeTransfer(msg.sender, rwaAmount);
 
         emit MarketMakerSwappedOut(id, msg.sender, rwaAmount);
     }
 
-    /// @inheritdoc IBloomPool
-    function borrowerShareOf(uint256 id, address account) public view override returns (uint256) {
-        return _borrowerAmounts[account][id].divWadUp(_idToTotalMatched[id]);
+    /**
+     * @notice Sets the price feed for the RWA token.
+     * @dev Only the owner can call this function.
+     * @param rwaPriceFeed The address of the price feed for the RWA token.
+     */
+    function setPriceFeed(address rwaPriceFeed) public onlyOwner {
+        _setPriceFeed(rwaPriceFeed);
     }
 
     /// @inheritdoc IBloomPool
@@ -237,7 +261,15 @@ contract BloomPool is IBloomPool, Orderbook {
         return uint256(answer) * scaler;
     }
 
-    function _convertMatchOrders(uint256 id, address account, uint256 amount) internal returns (uint256) {
+    /**
+     * @notice Converts matched orders to live TBYs.
+     * @param id The id of the TBY that the swap is for.
+     * @param account The address of the lender who's order is being converted.
+     * @param amount The amount of assets available to swap.
+     * @return amountUsed The amount of assets that were used (both borrower funds & lender funds)
+     *                    to convert matched orders to live TBYs.
+     */
+    function _convertMatchOrders(uint256 id, address account, uint256 amount) internal returns (uint256 amountUsed) {
         MatchOrder[] storage matches = _userMatchedOrders[account];
         uint256 remainingAmount = amount;
         uint256 borrowerAmountConverted = 0;
@@ -246,24 +278,36 @@ contract BloomPool is IBloomPool, Orderbook {
         for (uint256 i = length; i != 0; --i) {
             uint256 index = i - 1;
 
-            if (remainingAmount >= matches[index].amount) {
-                remainingAmount -= matches[index].amount;
+            if (remainingAmount != 0) {
+                uint256 amountToRemove = Math.min(remainingAmount, matches[index].amount);
+                remainingAmount -= amountToRemove;
 
-                uint256 borrowerAmount = matches[index].amount.divWadUp(matches[index].leverage);
-
+                uint256 borrowerAmount = amountToRemove.divWadUp(matches[index].leverage);
                 _borrowerAmounts[account][id] += borrowerAmount;
                 borrowerAmountConverted += borrowerAmount;
 
-                matches.pop();
+                if (amountToRemove == matches[index].amount) {
+                    matches.pop();
+                } else {
+                    matches[index].amount -= amountToRemove;
+                }
             } else {
                 break;
             }
         }
-
-        _idToTotalMatched[id] += borrowerAmountConverted;
+        _idToTotalBorrowed[id] += borrowerAmountConverted;
         uint256 totalRemoved = amount - remainingAmount;
         _matchedDepth -= totalRemoved;
+        amountUsed = totalRemoved + borrowerAmountConverted;
+    }
 
-        return totalRemoved;
+    /// @notice Logic to set the price feed for the RWA token.
+    function _setPriceFeed(address rwaPriceFeed) internal {
+        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(rwaPriceFeed).latestRoundData();
+        require(answer > 0, Errors.InvalidPriceFeed());
+        require(updatedAt >= block.timestamp - 1 days, Errors.OutOfDate());
+
+        _rwaPriceFeed = rwaPriceFeed;
+        _rwaPriceFeedDecimals = AggregatorV3Interface(rwaPriceFeed).decimals();
     }
 }
