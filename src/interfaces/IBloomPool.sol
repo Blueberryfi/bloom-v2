@@ -103,4 +103,7 @@ interface IBloomPool is IOrderbook, IPoolStorage {
      * @param id The id of the TBY.
      */
     function getRate(uint256 id) external view returns (uint256);
+
+    /// @notice Returns the RWAs price feed address.
+    function rwaPriceFeed() external view returns (address);
 }

@@ -11,13 +11,17 @@ pragma solidity ^0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {BloomPool} from "@bloom-v2/BloomPool.sol";
 import {BloomTestSetup} from "../BloomTestSetup.t.sol";
+import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 
 contract BloomUnitTest is BloomTestSetup {
+    using FpMath for uint256;
+
     // Events
     event BorrowerKyced(address indexed account, bool isKyced);
     event MarketMakerKyced(address indexed account, bool isKyced);
@@ -119,6 +123,20 @@ contract BloomUnitTest is BloomTestSetup {
         assertEq(bloomPool.leverage(), initialLeverage);
     }
 
+    function testSetSpreadNonOwner() public {
+        /// Expect revert if not owner calls
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        bloomPool.setSpread(0.95e18);
+        assertEq(bloomPool.spread(), initialSpread);
+    }
+
+    function testSetPriceFeedNonOwner() public {
+        /// Expect revert if not owner calls
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        bloomPool.setPriceFeed(address(1));
+        assertEq(bloomPool.rwaPriceFeed(), address(priceFeed));
+    }
+
     function testLendOrderZero() public {
         vm.expectRevert(Errors.ZeroAmount.selector);
         bloomPool.lendOrder(0);
@@ -163,5 +181,32 @@ contract BloomUnitTest is BloomTestSetup {
         vm.startPrank(borrower);
         vm.expectRevert(Errors.InsufficientBalance.selector);
         bloomPool.fillOrder(alice, 100e6);
+    }
+
+    function testMaxWithdrawIdleCapital() public {
+        _createLendOrder(alice, 100e6);
+
+        vm.prank(owner);
+        bloomPool.whitelistBorrower(borrower, true);
+
+        vm.startPrank(borrower);
+        uint256 borrowAmount = uint256(100e6).divWadUp(initialLeverage);
+        stable.approve(address(bloomPool), borrowAmount);
+        stable.mint(borrower, borrowAmount);
+        bloomPool.fillOrder(alice, 100e6);
+
+        vm.startPrank(alice);
+        bloomPool.killMatchOrder(100e6);
+
+        uint256 idleCapital = bloomPool.idleCapital(borrower);
+
+        uint256 borrowerBalanceBefore = stable.balanceOf(borrower);
+
+        vm.startPrank(borrower);
+        vm.expectEmit(true, false, false, true);
+        emit IOrderbook.IdleCapitalWithdrawn(borrower, idleCapital);
+        bloomPool.withdrawIdleCapital(type(uint256).max);
+
+        assertEq(stable.balanceOf(borrower), borrowerBalanceBefore + idleCapital);
     }
 }

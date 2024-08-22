@@ -48,6 +48,22 @@ contract BloomFuzzTest is BloomTestSetup {
         changed ? assertEq(bloomPool.leverage(), leverage) : assertEq(bloomPool.leverage(), initialLeverage);
     }
 
+    function testFuzz_SetSpread(uint256 spread) public {
+        vm.startPrank(owner);
+
+        bool changed = true;
+        if (spread < 0.85e18) {
+            vm.expectRevert(Errors.InvalidSpread.selector);
+            changed = false;
+        } else {
+            vm.expectEmit(false, false, false, true);
+            emit IPoolStorage.SpreadSet(spread);
+        }
+        bloomPool.setSpread(spread);
+
+        changed ? assertEq(bloomPool.spread(), spread) : assertEq(bloomPool.spread(), initialSpread);
+    }
+
     function testFuzz_LendOrder(uint256 amount) public {
         amount = bound(amount, 1e6, 100_000_000e6);
 
@@ -277,5 +293,66 @@ contract BloomFuzzTest is BloomTestSetup {
             assertEq(bloomPool.idleCapital(borrower2), orders[1].divWadUp(initialLeverage));
             assertEq(bloomPool.idleCapital(borrower), orders[0].divWadUp(initialLeverage));
         }
+    }
+
+    function testFuzz_WithdrawIdleCapital(uint256 orderSize, uint256 killAmount, uint256 withdrawAmount) public {
+        orderSize = bound(orderSize, 1e6, 1_000_000e6);
+        killAmount = bound(killAmount, 1e6, orderSize);
+        vm.assume(withdrawAmount <= killAmount.divWadUp(initialLeverage));
+
+        _createLendOrder(alice, orderSize);
+        vm.startPrank(borrower);
+
+        uint256 borrowAmount = orderSize.divWadUp(initialLeverage);
+        stable.mint(borrower, borrowAmount);
+        stable.approve(address(bloomPool), borrowAmount);
+        bloomPool.fillOrder(alice, orderSize);
+
+        vm.startPrank(alice);
+        bloomPool.killMatchOrder(killAmount);
+
+        uint256 idleCapital = bloomPool.idleCapital(borrower);
+        uint256 expectedIdleCapital = killAmount.divWadUp(initialLeverage);
+        assertEq(idleCapital, expectedIdleCapital);
+
+        uint256 borrowBalanceBefore = stable.balanceOf(borrower);
+
+        vm.startPrank(borrower);
+
+        if (withdrawAmount == 0) {
+            vm.expectRevert(Errors.ZeroAmount.selector);
+        } else {
+            vm.expectEmit(true, false, false, true);
+            emit IOrderbook.IdleCapitalWithdrawn(borrower, withdrawAmount);
+        }
+        bloomPool.withdrawIdleCapital(withdrawAmount);
+
+        assertEq(bloomPool.idleCapital(borrower), expectedIdleCapital - withdrawAmount);
+        assertEq(stable.balanceOf(borrower), borrowBalanceBefore + withdrawAmount);
+    }
+
+    function testFuzz_FillOrderWithIdleCapital(uint256 orderSize) public {
+        orderSize = bound(orderSize, 1e6, 1_000_000e6);
+
+        _createLendOrder(alice, orderSize);
+
+        uint256 borrowAmount = orderSize.divWadUp(initialLeverage);
+
+        vm.startPrank(borrower);
+        stable.mint(borrower, borrowAmount);
+        stable.approve(address(bloomPool), borrowAmount);
+        bloomPool.fillOrder(alice, orderSize);
+
+        vm.startPrank(alice);
+        bloomPool.killMatchOrder(orderSize);
+        _createLendOrder(alice, orderSize);
+
+        vm.startPrank(borrower);
+        vm.expectEmit(true, false, false, true);
+        emit IOrderbook.IdleCapitalDecreased(borrower, borrowAmount);
+        bloomPool.fillOrder(alice, orderSize);
+
+        uint256 idleCapital = bloomPool.idleCapital(borrower);
+        assertEq(idleCapital, 0);
     }
 }

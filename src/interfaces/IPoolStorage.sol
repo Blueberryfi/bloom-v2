@@ -25,7 +25,7 @@ interface IPoolStorage {
     event MarketMakerKyced(address indexed account, bool isKyced);
 
     /// @notice Emitted when the spread is updated.
-    event SpreadUpdated(uint256 spread);
+    event SpreadSet(uint256 spread);
 
     /**
      * @notice Emitted when the borrowers leverage amount is updated

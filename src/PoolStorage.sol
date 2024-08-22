@@ -181,6 +181,6 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
     function _setSpread(uint256 spread_) internal {
         require(spread_ >= 0.85e18, Errors.InvalidSpread());
         _spread = spread_;
-        emit SpreadUpdated(spread_);
+        emit SpreadSet(spread_);
     }
 }

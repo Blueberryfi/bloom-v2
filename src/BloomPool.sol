@@ -82,13 +82,13 @@ contract BloomPool is IBloomPool, Orderbook {
     constructor(
         address asset_,
         address rwa_,
-        address rwaPriceFeed,
+        address rwaPriceFeed_,
         uint256 initLeverage,
         uint256 spread,
         address owner_
     ) Orderbook(asset_, rwa_, initLeverage, spread, owner_) {
         require(owner_ != address(0), Errors.ZeroAddress());
-        _setPriceFeed(rwaPriceFeed);
+        _setPriceFeed(rwaPriceFeed_);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -225,10 +225,10 @@ contract BloomPool is IBloomPool, Orderbook {
     /**
      * @notice Sets the price feed for the RWA token.
      * @dev Only the owner can call this function.
-     * @param rwaPriceFeed The address of the price feed for the RWA token.
+     * @param rwaPriceFeed_ The address of the price feed for the RWA token.
      */
-    function setPriceFeed(address rwaPriceFeed) public onlyOwner {
-        _setPriceFeed(rwaPriceFeed);
+    function setPriceFeed(address rwaPriceFeed_) public onlyOwner {
+        _setPriceFeed(rwaPriceFeed_);
     }
 
     /// @inheritdoc IBloomPool
@@ -250,6 +250,11 @@ contract BloomPool is IBloomPool, Orderbook {
         // If the TBY has matured, and is not-eligible for redemption due to market maker delay,
         //     calculate price based on the current price of the RWA token via the price feed.
         return Math.WAD + (_rwaPrice() * _spread) / rwaPrice.startPrice;
+    }
+
+    /// @inheritdoc IBloomPool
+    function rwaPriceFeed() external view returns (address) {
+        return _rwaPriceFeed;
     }
 
     /// @notice Returns the current price of the RWA token.
@@ -302,12 +307,12 @@ contract BloomPool is IBloomPool, Orderbook {
     }
 
     /// @notice Logic to set the price feed for the RWA token.
-    function _setPriceFeed(address rwaPriceFeed) internal {
-        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(rwaPriceFeed).latestRoundData();
+    function _setPriceFeed(address rwaPriceFeed_) internal {
+        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(rwaPriceFeed_).latestRoundData();
         require(answer > 0, Errors.InvalidPriceFeed());
         require(updatedAt >= block.timestamp - 1 days, Errors.OutOfDate());
 
-        _rwaPriceFeed = rwaPriceFeed;
-        _rwaPriceFeedDecimals = AggregatorV3Interface(rwaPriceFeed).decimals();
+        _rwaPriceFeed = rwaPriceFeed_;
+        _rwaPriceFeedDecimals = AggregatorV3Interface(rwaPriceFeed_).decimals();
     }
 }

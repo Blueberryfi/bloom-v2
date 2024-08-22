@@ -157,9 +157,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
      */
     function _depositBorrower(uint256 amount) internal {
         uint256 borrowAmount = amount.divWadUp(_leverage);
+        borrowAmount = _utilizeIdleCapital(msg.sender, borrowAmount);
         require(IERC20(_asset).balanceOf(msg.sender) >= borrowAmount, Errors.InsufficientBalance());
 
-        borrowAmount = _utilizeIdleCapital(msg.sender, borrowAmount);
         IERC20(_asset).safeTransferFrom(msg.sender, address(this), borrowAmount);
     }
 
