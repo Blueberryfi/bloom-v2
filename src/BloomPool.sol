@@ -73,7 +73,7 @@ contract BloomPool is IBloomPool, Orderbook {
         address owner_
     ) Orderbook(asset_, rwa_, initLeverage, spread, owner_) {
         require(owner_ != address(0), Errors.ZeroAddress());
-        require(initLeverage >= 1e18 && initLeverage < 100e18, Errors.InvalidLeverage());
+        require(initLeverage >= Math.WAD && initLeverage < 100e18, Errors.InvalidLeverage());
 
         _rwaPriceFeedDecimals = AggregatorV3Interface(rwaPriceFeed).decimals();
         _rwaPriceFeed = rwaPriceFeed;
@@ -160,7 +160,7 @@ contract BloomPool is IBloomPool, Orderbook {
             _tbyIdToRwaPrice[id].startPrice = uint128(currentPrice);
         }
 
-        uint256 rwaAmount = (currentPrice * amountSwapped) / 1e18;
+        uint256 rwaAmount = (currentPrice * amountSwapped) / Math.WAD;
         IERC20(_rwa).safeTransferFrom(msg.sender, address(this), rwaAmount);
         IERC20(_asset).safeTransfer(msg.sender, amountSwapped);
 
@@ -187,10 +187,10 @@ contract BloomPool is IBloomPool, Orderbook {
             _tbyIdToRwaPrice[id].endPrice = uint128(currentPrice);
         }
 
-        uint256 tbyAmount = (rwaPrice.startPrice * rwaAmount) / 1e18;
-        assetAmount = (rwaAmount * 1e6) / currentPrice;
+        uint256 tbyAmount = uint256(rwaPrice.startPrice).mulWad(rwaAmount);
+        assetAmount = (rwaAmount * (10 ** _assetDecimals)) / currentPrice;
 
-        uint256 lenderReturn = (getRate(id) * tbyAmount) / 1e12;
+        uint256 lenderReturn = (getRate(id) * tbyAmount) / (10 ** (18 - _assetDecimals));
         uint256 borrowerReturn = tbyAmount - lenderReturn;
 
         _tbyBorrowerReturns[id] += borrowerReturn;
@@ -215,24 +215,26 @@ contract BloomPool is IBloomPool, Orderbook {
         uint256 time = block.timestamp;
         // If the TBY has not started accruing interest, return 1e18.
         if (time <= maturity.start) {
-            return 1e18;
+            return Math.WAD;
         }
 
         // If the TBY has matured, and is eligible for redemption, calculate price based on the end price.
         if (time >= maturity.end && rwaPrice.endPrice != 0) {
-            return 1e18 + (rwaPrice.endPrice * _spread) / rwaPrice.startPrice;
+            return Math.WAD + (rwaPrice.endPrice * _spread) / rwaPrice.startPrice;
         }
 
         // If the TBY has matured, and is not-eligible for redemption due to market maker delay,
         //     calculate price based on the current price of the RWA token via the price feed.
-        return 1e18 + (_rwaPrice() * _spread) / rwaPrice.startPrice;
+        return Math.WAD + (_rwaPrice() * _spread) / rwaPrice.startPrice;
     }
 
     /// @notice Returns the current price of the RWA token.
     function _rwaPrice() public view returns (uint256) {
         (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(_rwaPriceFeed).latestRoundData();
         require(updatedAt >= block.timestamp - 1 days, Errors.OutOfDate());
-        return uint256(answer) * 10 ** (Math.WAD - _rwaPriceFeedDecimals);
+        uint256 scaler = 10 ** (18 - _rwaPriceFeedDecimals);
+
+        return uint256(answer) * scaler;
     }
 
     function _convertMatchOrders(uint256 id, address account, uint256 amount) internal returns (uint256) {

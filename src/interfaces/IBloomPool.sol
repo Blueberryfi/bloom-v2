@@ -93,6 +93,7 @@ interface IBloomPool is IOrderbook, IPoolStorage {
 
     /**
      * @notice Returns the current rate of the TBY in terms of USD.
+     * @dev The rate is returned as a fixed point number with 18 decimals.
      * @param id The id of the TBY.
      */
     function getRate(uint256 id) external view returns (uint256);
