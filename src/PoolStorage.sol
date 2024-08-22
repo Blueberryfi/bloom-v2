@@ -10,23 +10,24 @@
 pragma solidity ^0.8.26;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
-import {LTby} from "@bloom-v2/token/LTby.sol";
+import {Tby} from "@bloom-v2/token/Tby.sol";
 import {IPoolStorage} from "@bloom-v2/interfaces/IPoolStorage.sol";
 
 /**
  * @title Pool Storage
  * @notice Global Storage for Bloom Pools
  */
-abstract contract PoolStorage is IPoolStorage {
+abstract contract PoolStorage is IPoolStorage, Ownable2Step {
     /*///////////////////////////////////////////////////////////////
                                 Storage    
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Addresss of the lTby token
-    LTby internal _lTby;
+    Tby internal _tby;
 
     /// @notice Address of the underlying asset of the Pool.
     address internal immutable _asset;
@@ -42,6 +43,9 @@ abstract contract PoolStorage is IPoolStorage {
 
     /// @notice Leverage value for the borrower. scaled by 1e18 (50x leverage == 2% == 0.02e18)
     uint256 internal _leverage;
+
+    /// @notice The spread between the rate of the TBY and the rate of the RWA token.
+    uint256 internal _spread;
 
     /// @notice Mapping of KYCed borrowers.
     mapping(address => bool) internal _borrowers;
@@ -67,24 +71,71 @@ abstract contract PoolStorage is IPoolStorage {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address asset_, address rwa_) {
+    constructor(address asset_, address rwa_, uint256 initLeverage, uint256 initSpread, address owner_)
+        Ownable(owner_)
+    {
         _asset = asset_;
         _rwa = rwa_;
 
         uint8 decimals = IERC20Metadata(asset_).decimals();
-        _lTby = new LTby(address(this), decimals);
+        _tby = new Tby(address(this), decimals);
 
         _assetDecimals = decimals;
         _rwaDecimals = IERC20Metadata(rwa_).decimals();
+
+        _leverage = initLeverage;
+        _spread = initSpread;
     }
 
     /*///////////////////////////////////////////////////////////////
                             Functions    
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Whitelists an address to be a KYCed borrower.
+     * @dev Only the owner can call this function.
+     * @param account The address of the borrower to whitelist.
+     * @param isKyced True to whitelist, false to remove from whitelist.
+     */
+    function whitelistBorrower(address account, bool isKyced) external onlyOwner {
+        _borrowers[account] = isKyced;
+        emit BorrowerKyced(account, isKyced);
+    }
+
+    /**
+     * @notice Whitelists an address to be a KYCed borrower.
+     * @dev Only the owner can call this function.
+     * @param account The address of the borrower to whitelist.
+     * @param isKyced True to whitelist, false to remove from whitelist.
+     */
+    function whitelistMarketMaker(address account, bool isKyced) external onlyOwner {
+        _marketMakers[account] = isKyced;
+        emit MarketMakerKyced(account, isKyced);
+    }
+
+    /**
+     * @notice Updates the leverage for future borrower fills
+     * @dev Leverage is scaled to 1e18. (20x leverage = 20e18)
+     * @param leverage Updated leverage
+     */
+    function setLeverage(uint256 leverage) external onlyOwner {
+        require(leverage >= 1e18 && leverage < 100e18, Errors.InvalidLeverage());
+        _leverage = leverage;
+        emit LeverageSet(leverage);
+    }
+
+    /**
+     * @notice Updates the spread between the TBY rate and the RWA rate.
+     * @param spread_ The new spread value.
+     */
+    function setSpread(uint256 spread_) external onlyOwner {
+        _spread = spread_;
+        emit SpreadUpdated(spread_);
+    }
+
     /// @inheritdoc IPoolStorage
-    function lTby() external view returns (address) {
-        return address(_lTby);
+    function tby() external view returns (address) {
+        return address(_tby);
     }
 
     /// @inheritdoc IPoolStorage
@@ -115,5 +166,10 @@ abstract contract PoolStorage is IPoolStorage {
     /// @inheritdoc IPoolStorage
     function isKYCedMarketMaker(address account) public view override returns (bool) {
         return _marketMakers[account];
+    }
+
+    /// @inheritdoc IPoolStorage
+    function spread() external view override returns (uint256) {
+        return _spread;
     }
 }

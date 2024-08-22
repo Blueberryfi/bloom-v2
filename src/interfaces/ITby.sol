@@ -10,10 +10,10 @@
 pragma solidity ^0.8.26;
 
 /**
- * @title ILTBY
- * @notice Interface for the Lender Term Bound Yield Token
+ * @title ITby
+ * @notice Interface for the Lender's Term Bound Yield Token
  */
-interface ILTBY {
+interface ITby {
     /**
      * @notice Returns the address of the BloomPool contract.
      * @return The address of the BloomPool contract.
@@ -43,4 +43,7 @@ interface ILTBY {
      * @param id The id of the token.
      */
     function totalSupply(uint256 id) external view returns (uint256);
+
+    /// @notice Returns the share of the account in the TBY.
+    function shareOf(uint256 id, address account) external view returns (uint256);
 }

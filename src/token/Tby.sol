@@ -14,13 +14,13 @@ import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
-import {ILTBY} from "@bloom-v2/interfaces/ILTBY.sol";
+import {ITby} from "@bloom-v2/interfaces/ITby.sol";
 
 /**
- * @title LTby
- * @notice LTby or lenderTBYs are tokens representing a lenders's position in the Bloom v2 protocol.
+ * @title Tby
+ * @notice Tby or Term Bound Yield tokens represent a lenders's position in the Bloom v2 protocol.
  */
-contract LTby is ILTBY, ERC1155 {
+contract Tby is ITby, ERC1155 {
     using Math for uint256;
 
     /*///////////////////////////////////////////////////////////////
@@ -58,42 +58,54 @@ contract LTby is ILTBY, ERC1155 {
                             Functions
     //////////////////////////////////////////////////////////////*/
 
-    function mint(uint256 id, address account, uint256 stableAmount) external onlyBloom {
-        _totalSupply[id] += stableAmount;
-        _mint(account, id, stableAmount, "");
+    /**
+     * @notice Mints Tby tokens to an account.
+     * @param id The Tby id.
+     * @param account The address of the account to mint to.
+     * @param amount The amount to mint.
+     */
+    function mint(uint256 id, address account, uint256 amount) external onlyBloom {
+        _totalSupply[id] += amount;
+        _mint(account, id, amount, "");
     }
 
-    function burnShares(uint256 id, address account, uint256 shares) external onlyBloom {
-        uint256 amount = shares.mulWad(_totalSupply[id]);
+    /**
+     * @notice Burns Tby tokens from an account.
+     * @param id The Tby id.
+     * @param account The address of the account to burn from.
+     * @param amount The amount to burn.
+     */
+    function burn(uint256 id, address account, uint256 amount) external onlyBloom {
         _totalSupply[id] -= amount;
         _burn(account, 0, amount);
     }
 
-    function shareOf(uint256 id, address account) public view returns (uint256) {
+    /// @inheritdoc ITby
+    function shareOf(uint256 id, address account) external view returns (uint256) {
         return balanceOf(account, id).divWadUp(_totalSupply[id]);
     }
 
-    /// @inheritdoc ILTBY
+    /// @inheritdoc ITby
     function bloomPool() external view returns (address) {
         return _bloomPool;
     }
 
-    /// @inheritdoc ILTBY
+    /// @inheritdoc ITby
     function name() external pure returns (string memory) {
-        return "Lender TBY";
+        return "Term Bound Yield";
     }
 
-    /// @inheritdoc ILTBY
+    /// @inheritdoc ITby
     function symbol() external pure returns (string memory) {
-        return "lTBY";
+        return "TBY";
     }
 
-    /// @inheritdoc ILTBY
+    /// @inheritdoc ITby
     function decimals() external view returns (uint8) {
         return _decimals;
     }
 
-    /// @inheritdoc ILTBY
+    /// @inheritdoc ITby
     function totalSupply(uint256 id) external view returns (uint256) {
         return _totalSupply[id];
     }

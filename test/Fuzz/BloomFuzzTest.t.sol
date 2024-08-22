@@ -29,7 +29,7 @@ contract BloomFuzzTest is BloomTestSetup {
     function setUp() public override {
         super.setUp();
         vm.startPrank(owner);
-        bloomPool.whitelistBorrower(borrower);
+        bloomPool.whitelistBorrower(borrower, true);
     }
 
     function testFuzz_SetLeverage(uint256 leverage) public {
@@ -239,8 +239,8 @@ contract BloomFuzzTest is BloomTestSetup {
         address borrower3 = makeAddr("borrower3");
 
         vm.startPrank(owner);
-        bloomPool.whitelistBorrower(borrower2);
-        bloomPool.whitelistBorrower(borrower3);
+        bloomPool.whitelistBorrower(borrower2, true);
+        bloomPool.whitelistBorrower(borrower3, true);
 
         stable.mint(borrower, orders[0].divWadUp(initialLeverage));
         stable.mint(borrower2, orders[1].divWadUp(initialLeverage));

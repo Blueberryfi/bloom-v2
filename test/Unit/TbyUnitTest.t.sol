@@ -14,38 +14,38 @@ import {Test} from "forge-std/Test.sol";
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {BloomTestSetup} from "../BloomTestSetup.t.sol";
-import {LTby} from "@bloom-v2/token/LTby.sol";
+import {Tby} from "@bloom-v2/token/Tby.sol";
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 
-contract LTbyUnitTest is BloomTestSetup {
+contract TbyUnitTest is BloomTestSetup {
     function setUp() public override {
         super.setUp();
     }
 
     function testConstructor() public {
-        LTby newLtby = new LTby(address(bloomPool), 18);
-        assertEq(newLtby.bloomPool(), address(bloomPool));
-        assertEq(newLtby.decimals(), 18);
+        Tby newTby = new Tby(address(bloomPool), 18);
+        assertEq(newTby.bloomPool(), address(bloomPool));
+        assertEq(newTby.decimals(), 18);
     }
 
     function testBloomPool() public view {
-        assertEq(ltby.bloomPool(), address(bloomPool));
+        assertEq(tby.bloomPool(), address(bloomPool));
     }
 
     function testDecimals() public view {
-        assertEq(ltby.decimals(), bloomPool.assetDecimals());
+        assertEq(tby.decimals(), bloomPool.assetDecimals());
     }
 
     function testName() public view {
-        assertEq(ltby.name(), "Lender TBY");
+        assertEq(tby.name(), "Term Bound Yield");
     }
 
     function testSymbol() public view {
-        assertEq(ltby.symbol(), "lTBY");
+        assertEq(tby.symbol(), "TBY");
     }
 
     function testUri() public view {
-        assertEq(ltby.uri(1), "https://bloom.garden/live");
+        assertEq(tby.uri(1), "https://bloom.garden/live");
     }
 
     function testNonBloomCaller() public {
@@ -53,6 +53,6 @@ contract LTbyUnitTest is BloomTestSetup {
 
         // Revert open
         vm.expectRevert(Errors.NotBloom.selector);
-        ltby.mint(0, alice, 1e6);
+        tby.mint(0, alice, 1e6);
     }
 }

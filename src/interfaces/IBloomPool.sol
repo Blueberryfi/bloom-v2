@@ -18,12 +18,6 @@ import {IPoolStorage} from "@bloom-v2/interfaces/IPoolStorage.sol";
  */
 interface IBloomPool is IOrderbook, IPoolStorage {
     /*///////////////////////////////////////////////////////////////
-                                Events
-    //////////////////////////////////////////////////////////////*/
-    /// @notice Emitted when the spread is updated.
-    event SpreadUpdated(uint256 spread);
-
-    /*///////////////////////////////////////////////////////////////
                             Structs
     //////////////////////////////////////////////////////////////*/
     /**
@@ -55,6 +49,22 @@ interface IBloomPool is IOrderbook, IPoolStorage {
      * @param amount Amount of rwa tokens swapped out.
      */
     event MarketMakerSwappedOut(uint256 indexed id, address indexed account, uint256 amount);
+
+    /**
+     * @notice Emitted when a Lender redeems their share of rewards from a TBY.
+     * @param account The address of the lender redeeming.
+     * @param id The unique identifier of the TBY being redeemed.
+     * @param amount The amount of rewards being redeemed.
+     */
+    event LenderRedeemed(address indexed account, uint256 indexed id, uint256 amount);
+
+    /**
+     * @notice Emitted when a Borrower redeems their share of rewards from a TBY.
+     * @param account The address of the borrower redeeming.
+     * @param id The unique identifier of the TBY being redeemed.
+     * @param amount The amount of rewards being redeemed.
+     */
+    event BorrowerRedeemed(address indexed account, uint256 indexed id, uint256 amount);
 
     /*///////////////////////////////////////////////////////////////
                             Functions

@@ -49,9 +49,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address asset_, address rwa_, uint256 initLeverage) PoolStorage(asset_, rwa_) {
-        _leverage = initLeverage;
-    }
+    constructor(address asset_, address rwa_, uint256 initLeverage, uint256 initSpread, address owner_)
+        PoolStorage(asset_, rwa_, initLeverage, initSpread, owner_)
+    {}
 
     /*///////////////////////////////////////////////////////////////
                             Functions    
@@ -59,7 +59,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
 
     /// @inheritdoc IOrderbook
     function lendOrder(uint256 amount) external {
-        require(amount > 0, Errors.ZeroAmount());
+        _amountZeroCheck(amount);
 
         _openDepth += amount;
         _userOpenOrder[msg.sender] += amount;
@@ -89,6 +89,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     /// @inheritdoc IOrderbook
     function killOpenOrder(uint256 amount) external {
         uint256 orderDepth = _userOpenOrder[msg.sender];
+        _amountZeroCheck(amount);
         require(amount <= orderDepth, Errors.InsufficientDepth());
 
         _userOpenOrder[msg.sender] -= amount;
@@ -100,6 +101,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
 
     /// @inheritdoc IOrderbook
     function killMatchOrder(uint256 amount) public returns (uint256 totalRemoved) {
+        _amountZeroCheck(amount);
         // if the order is already matched we have to account for the borrower's who filled the order.
         // If you kill a match order and there are multiple borrowers, the order will be closed in a LIFO manner.
         // For each borrow the full amount that was matched must be removed from the order.
@@ -113,7 +115,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     /// @inheritdoc IOrderbook
     function withdrawIdleCapital(uint256 amount) external {
         address account = msg.sender;
-        require(amount > 0, Errors.ZeroAmount());
+        _amountZeroCheck(amount);
 
         uint256 idleFunds = _idleCapital[account];
 
@@ -136,7 +138,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
      */
     function _fillOrder(address account, uint256 amount) internal returns (uint256 filled) {
         require(account != address(0), Errors.ZeroAddress());
-        require(amount > 0, Errors.ZeroAmount());
+        _amountZeroCheck(amount);
 
         uint256 orderDepth = _userOpenOrder[account];
 
@@ -202,6 +204,14 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
             }
         }
         _matchedDepth -= totalRemoved;
+    }
+
+    /**
+     * @notice Checks if the amount is greater than zero
+     * @param amount The amount of underlying assets to close the matched order
+     */
+    function _amountZeroCheck(uint256 amount) internal pure {
+        require(amount > 0, Errors.ZeroAmount());
     }
 
     /// @inheritdoc IOrderbook

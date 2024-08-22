@@ -19,15 +19,17 @@ import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 
 contract BloomUnitTest is BloomTestSetup {
     // Events
-    event BorrowerKYCed(address indexed account);
-    event MarketMakerKYCed(address indexed account);
+    event BorrowerKyced(address indexed account, bool isKyced);
+    event MarketMakerKyced(address indexed account, bool isKyced);
 
     function setUp() public override {
         super.setUp();
     }
 
     function testDeployment() public {
-        BloomPool newPool = new BloomPool(address(stable), address(billToken), initialLeverage, owner);
+        BloomPool newPool = new BloomPool(
+            address(stable), address(billToken), address(priceFeed), initialLeverage, initialSpread, owner
+        );
         assertNotEq(address(newPool), address(0));
     }
 
@@ -51,6 +53,10 @@ contract BloomUnitTest is BloomTestSetup {
         assertEq(bloomPool.leverage(), initialLeverage);
     }
 
+    function test_Spread() public view {
+        assertEq(bloomPool.spread(), initialSpread);
+    }
+
     function test_FactoryCheck() public view {
         assertEq(bloomFactory.isFromFactory(address(bloomPool)), true);
         assertEq(bloomFactory.isFromFactory(owner), false);
@@ -63,35 +69,47 @@ contract BloomUnitTest is BloomTestSetup {
     function test_CreateBloomPoolRevert() public {
         /// Expect revert if not owner calls
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
-        bloomFactory.createBloomPool(address(stable), address(billToken), 200);
+        bloomFactory.createBloomPool(address(stable), address(billToken), address(priceFeed), 1e18, 200);
     }
 
     function testSetBorrowerWhitelist() public {
         /// Expect revert if not owner calls
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
-        bloomPool.whitelistBorrower(borrower);
+        bloomPool.whitelistBorrower(borrower, true);
         assertEq(bloomPool.isKYCedBorrower(borrower), false);
 
         /// Expect success if owner calls
-        vm.prank(owner);
-        vm.expectEmit(false, false, false, true);
-        emit BorrowerKYCed(borrower);
-        bloomPool.whitelistBorrower(borrower);
+        vm.startPrank(owner);
+        vm.expectEmit(true, false, false, true);
+        emit BorrowerKyced(borrower, true);
+        bloomPool.whitelistBorrower(borrower, true);
         assertEq(bloomPool.isKYCedBorrower(borrower), true);
+
+        /// Successfully remove borrower from whitelist
+        vm.expectEmit(true, false, false, false);
+        emit BorrowerKyced(borrower, false);
+        bloomPool.whitelistBorrower(borrower, false);
+        assertEq(bloomPool.isKYCedBorrower(borrower), false);
     }
 
     function testSetMarketMakerWhitelist() public {
         /// Expect revert if not owner calls
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
-        bloomPool.whitelistMarketMaker(marketMaker);
+        bloomPool.whitelistMarketMaker(marketMaker, true);
         assertEq(bloomPool.isKYCedMarketMaker(marketMaker), false);
 
         /// Expect success if owner calls
-        vm.prank(owner);
+        vm.startPrank(owner);
         vm.expectEmit(false, false, false, true);
-        emit MarketMakerKYCed(marketMaker);
-        bloomPool.whitelistMarketMaker(marketMaker);
+        emit MarketMakerKyced(marketMaker, true);
+        bloomPool.whitelistMarketMaker(marketMaker, true);
         assertEq(bloomPool.isKYCedMarketMaker(marketMaker), true);
+
+        /// Successfully remove Market Maker from whitelist
+        vm.expectEmit(true, false, false, false);
+        emit MarketMakerKyced(marketMaker, false);
+        bloomPool.whitelistMarketMaker(marketMaker, false);
+        assertEq(bloomPool.isKYCedMarketMaker(marketMaker), false);
     }
 
     function testSetLeverageNonOwner() public {
@@ -111,7 +129,7 @@ contract BloomUnitTest is BloomTestSetup {
         _createLendOrder(alice, 100e6);
 
         vm.startPrank(owner);
-        bloomPool.whitelistBorrower(borrower);
+        bloomPool.whitelistBorrower(borrower, true);
 
         vm.startPrank(borrower);
         // Should revert if amount is zero
@@ -139,7 +157,7 @@ contract BloomUnitTest is BloomTestSetup {
         _createLendOrder(alice, 100e6);
 
         vm.startPrank(owner);
-        bloomPool.whitelistBorrower(borrower);
+        bloomPool.whitelistBorrower(borrower, true);
 
         // Should revert if the borrower has insufficient balance
         vm.startPrank(borrower);

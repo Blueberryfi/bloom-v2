@@ -13,16 +13,18 @@ import {Test} from "forge-std/Test.sol";
 
 import {BloomFactory} from "@bloom-v2/BloomFactory.sol";
 import {BloomPool} from "@bloom-v2/BloomPool.sol";
-import {LTby} from "@bloom-v2/token/LTby.sol";
+import {Tby} from "@bloom-v2/token/Tby.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
+import {MockPriceFeed} from "./mocks/MockPriceFeed.sol";
 
 abstract contract BloomTestSetup is Test {
     BloomFactory internal bloomFactory;
     BloomPool internal bloomPool;
-    LTby internal ltby;
+    Tby internal tby;
     MockERC20 internal stable;
     MockERC20 internal billToken;
+    MockPriceFeed internal priceFeed;
 
     address internal owner = makeAddr("owner");
     address internal alice = makeAddr("alice");
@@ -32,17 +34,22 @@ abstract contract BloomTestSetup is Test {
     address internal rando = makeAddr("rando");
 
     uint256 internal initialLeverage = 50e18;
+    uint256 internal initialSpread = 0.995e18;
 
     function setUp() public virtual {
         bloomFactory = new BloomFactory(owner);
         stable = new MockERC20("Mock USDC", "USDC", 6);
         billToken = new MockERC20("Mock T-Bill Token", "bIb01", 18);
 
+        priceFeed = new MockPriceFeed(8);
+
         vm.prank(owner);
-        bloomPool = bloomFactory.createBloomPool(address(stable), address(billToken), initialLeverage);
+        bloomPool = bloomFactory.createBloomPool(
+            address(stable), address(billToken), address(priceFeed), initialLeverage, initialSpread
+        );
         vm.stopPrank();
 
-        ltby = LTby(bloomPool.lTby());
+        tby = Tby(bloomPool.tby());
         assertNotEq(address(bloomPool), address(0));
     }
 
