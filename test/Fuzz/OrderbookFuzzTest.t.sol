@@ -15,10 +15,9 @@ import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
 import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
-import {IPoolStorage} from "@bloom-v2/interfaces/IPoolStorage.sol";
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 
-contract BloomFuzzTest is BloomTestSetup {
+contract OrderbookFuzzTest is BloomTestSetup {
     using FpMath for uint256;
 
     address[] public lenders;
@@ -30,38 +29,6 @@ contract BloomFuzzTest is BloomTestSetup {
         super.setUp();
         vm.startPrank(owner);
         bloomPool.whitelistBorrower(borrower, true);
-    }
-
-    function testFuzz_SetLeverage(uint256 leverage) public {
-        vm.startPrank(owner);
-
-        bool changed = true;
-        if (leverage >= 100e18 || leverage < 1e18) {
-            vm.expectRevert(Errors.InvalidLeverage.selector);
-            changed = false;
-        } else {
-            vm.expectEmit(false, false, false, true);
-            emit IPoolStorage.LeverageSet(leverage);
-        }
-        bloomPool.setLeverage(leverage);
-
-        changed ? assertEq(bloomPool.leverage(), leverage) : assertEq(bloomPool.leverage(), initialLeverage);
-    }
-
-    function testFuzz_SetSpread(uint256 spread) public {
-        vm.startPrank(owner);
-
-        bool changed = true;
-        if (spread < 0.85e18) {
-            vm.expectRevert(Errors.InvalidSpread.selector);
-            changed = false;
-        } else {
-            vm.expectEmit(false, false, false, true);
-            emit IPoolStorage.SpreadSet(spread);
-        }
-        bloomPool.setSpread(spread);
-
-        changed ? assertEq(bloomPool.spread(), spread) : assertEq(bloomPool.spread(), initialSpread);
     }
 
     function testFuzz_LendOrder(uint256 amount) public {
