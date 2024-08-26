@@ -119,16 +119,12 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         // Mint RWA Tokens to the market maker
         billToken.mint(marketMaker, rwaAmount);
         billToken.approve(address(bloomPool), rwaAmount);
-        
-        (uint256 id, uint256 amountSwapped) = bloomPool.swapIn(lenders, swapAmount);
 
-        // (, answer,,,) = priceFeed.latestRoundData();
-        // answerScaled = uint256(answer) * (10 ** (18 - priceFeed.decimals()));
-        // rwaAmount = (amountSwapped * (10 ** 18 - stable.decimals())).divWadUp(answerScaled);
+        (uint256 id, uint256 amountSwapped) = bloomPool.swapIn(lenders, swapAmount);
 
         uint256 expectedStableBalance = order0 + order1 + order2 - amountSwapped;
         // Validate Token Balances
-        // assertEq(stable.balanceOf(address(bloomPool)), expectedStableBalance);
+        assertEq(stable.balanceOf(address(bloomPool)), expectedStableBalance);
         assertEq(stable.balanceOf(marketMaker), amountSwapped);
         assertEq(billToken.balanceOf(address(bloomPool)), rwaAmount);
 
@@ -149,8 +145,8 @@ contract BloomPoolFuzzTest is BloomTestSetup {
             expectedBorrowerAmount = borrowAmount0;
 
             uint256 order1Amount = swapAmount - order0;
-            expectedBobTby = order1Amount * amounts[1] / order1;
-            expectedBorrowerAmount += (order1Amount - expectedBobTby);
+            expectedBobTby = (order1Amount * amounts[1]) / order1;
+            expectedBorrowerAmount += swapAmount - expectedBobTby;
 
             expectedBobOrderCount = 1;
             expectedRandoOrderCount = 1;
@@ -163,8 +159,8 @@ contract BloomPoolFuzzTest is BloomTestSetup {
             expectedBorrowerAmount += borrowAmount1;
 
             uint256 order2Amount = swapAmount - (order0 + order1);
-            expectedRandoTby = order2Amount * amounts[2] / order2;
-            expectedBorrowerAmount += (order2Amount - expectedRandoTby);
+            expectedRandoTby = (order2Amount * amounts[2]) / order2;
+            expectedBorrowerAmount += swapAmount - expectedRandoTby;
 
             expectedRandoOrderCount = 1;
         } else if (swapAmount == totalAmounts) {
@@ -179,7 +175,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
             expectedBorrowerAmount += borrowAmount2;
         } else {
             // If no full orders were removed
-            expectedAliceTby = swapAmount * amounts[0] / (amounts[0] + borrowAmount0);
+            expectedAliceTby = (swapAmount * amounts[0]) / order0;
             expectedBorrowerAmount = swapAmount - expectedAliceTby;
 
             expectedAliceOrderCount = 1;
@@ -193,9 +189,9 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         assertEq(bloomPool.matchedOrderCount(rando), expectedRandoOrderCount);
 
         // Validate user Tby balance
-        // assertEq(tby.balanceOf(alice, id), expectedAliceTby);
-        // assertEq(tby.balanceOf(bob, id), expectedBobTby);
-        // assertEq(tby.balanceOf(rando, id), expectedRandoTby);
+        assertEq(tby.balanceOf(alice, id), expectedAliceTby);
+        assertEq(tby.balanceOf(bob, id), expectedBobTby);
+        assertEq(tby.balanceOf(rando, id), expectedRandoTby);
 
         // Expected Matched Depth should equal the sum of all lend orders minus the added balance for all lenders
         uint256 expectedMatchedDepth = amounts[0] + amounts[1] + amounts[2]
@@ -205,8 +201,8 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         assertEq(bloomPool.tbyCollateral(0).assetAmount, 0);
         assertEq(bloomPool.tbyCollateral(0).rwaAmount, rwaAmount);
 
-        // assertEq(bloomPool.borrowerAmount(borrower, 0), expectedBorrowerAmount);
-        // assertEq(bloomPool.totalBorrowed(0), expectedBorrowerAmount);
+        assertApproxEqRelDecimal(bloomPool.borrowerAmount(borrower, 0), expectedBorrowerAmount, 0.9999e18, 6);
+        assertApproxEqRelDecimal(bloomPool.totalBorrowed(0), expectedBorrowerAmount, 0.9999e18, 6);
         assertEq(bloomPool.isTbyRedeemable(0), false);
     }
 }

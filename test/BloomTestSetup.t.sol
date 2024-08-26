@@ -69,7 +69,7 @@ abstract contract BloomTestSetup is Test {
     }
 
     function _fillOrder(address lender, uint256 amount) internal returns (uint256 borrowAmount) {
-        borrowAmount = amount.divWadUp(initialLeverage);
+        borrowAmount = amount.divWad(initialLeverage);
         stable.mint(borrower, borrowAmount);
         vm.startPrank(borrower);
         stable.approve(address(bloomPool), borrowAmount);

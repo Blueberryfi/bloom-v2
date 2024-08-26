@@ -17,7 +17,6 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {PoolStorage} from "@bloom-v2/PoolStorage.sol";
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
-import "forge-std/console2.sol";
 
 /**
  * @title Orderbook
@@ -50,13 +49,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
                             Constructor    
     //////////////////////////////////////////////////////////////*/
 
-    constructor(
-        address asset_,
-        address rwa_,
-        uint256 initLeverage,
-        uint256 initSpread,
-        address owner_
-    ) PoolStorage(asset_, rwa_, initLeverage, initSpread, owner_) {}
+    constructor(address asset_, address rwa_, uint256 initLeverage, uint256 initSpread, address owner_)
+        PoolStorage(asset_, rwa_, initLeverage, initSpread, owner_)
+    {}
 
     /*///////////////////////////////////////////////////////////////
                             Functions    
@@ -74,10 +69,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function fillOrder(
-        address account,
-        uint256 amount
-    )
+    function fillOrder(address account, uint256 amount)
         external
         KycBorrower
         returns (uint256 filledAmount, uint256 borrowAmount)
@@ -87,20 +79,14 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function fillOrders(
-        address[] memory accounts,
-        uint256 amount
-    )
+    function fillOrders(address[] memory accounts, uint256 amount)
         external
         KycBorrower
         returns (uint256 filledAmount, uint256 borrowAmount)
     {
         uint256 len = accounts.length;
         for (uint256 i = 0; i != len; ++i) {
-            (uint256 fillSize, uint256 borrowSize) = _fillOrder(
-                accounts[i],
-                amount
-            );
+            (uint256 fillSize, uint256 borrowSize) = _fillOrder(accounts[i], amount);
             amount -= fillSize;
             filledAmount += fillSize;
             borrowAmount += borrowSize;
@@ -123,14 +109,11 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function killMatchOrder(
-        uint256 amount
-    ) public returns (uint256 totalRemoved) {
+    function killMatchOrder(uint256 amount) public returns (uint256 totalRemoved) {
         _amountZeroCheck(amount);
         // if the order is already matched we have to account for the borrower's who filled the order.
         // If you kill a match order and there are multiple borrowers, the order will be closed in a LIFO manner.
         totalRemoved = _closeMatchOrders(msg.sender, amount);
-        console2.log("totalRemoved", totalRemoved);
         IERC20(_asset).safeTransfer(msg.sender, totalRemoved);
 
         emit OrderKilled(msg.sender, totalRemoved);
@@ -160,10 +143,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
      * @param account The address of the order to fill
      * @param amount Amount of underlying assets of the order to fill
      */
-    function _fillOrder(
-        address account,
-        uint256 amount
-    ) internal returns (uint256 filled, uint256 borrowAmount) {
+    function _fillOrder(address account, uint256 amount) internal returns (uint256 filled, uint256 borrowAmount) {
         require(account != address(0), Errors.ZeroAddress());
         _amountZeroCheck(amount);
 
@@ -177,11 +157,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         borrowAmount = filled.divWad(_leverage);
 
         _userMatchedOrders[account].push(
-            MatchOrder({
-                lCollateral: uint128(filled),
-                bCollateral: uint128(borrowAmount),
-                borrower: msg.sender
-            })
+            MatchOrder({lCollateral: uint128(filled), bCollateral: uint128(borrowAmount), borrower: msg.sender})
         );
 
         emit OrderFilled(account, msg.sender, _leverage, filled);
@@ -194,18 +170,12 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
      */
     function _depositBorrower(uint256 amount) internal {
         amount = _utilizeIdleCapital(msg.sender, amount);
-        require(
-            IERC20(_asset).balanceOf(msg.sender) >= amount,
-            Errors.InsufficientBalance()
-        );
+        require(IERC20(_asset).balanceOf(msg.sender) >= amount, Errors.InsufficientBalance());
 
         IERC20(_asset).safeTransferFrom(msg.sender, address(this), amount);
     }
 
-    function _utilizeIdleCapital(
-        address account,
-        uint256 amount
-    ) internal returns (uint256) {
+    function _utilizeIdleCapital(address account, uint256 amount) internal returns (uint256) {
         uint256 idleUsed = Math.min(_idleCapital[account], amount);
         if (idleUsed > 0) {
             _idleCapital[account] -= idleUsed;
@@ -221,10 +191,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
      * @param amount The amount of underlying assets to close the matched order
      * @return totalRemoved The amount for each borrower that was removed.
      */
-    function _closeMatchOrders(
-        address account,
-        uint256 amount
-    ) internal returns (uint256 totalRemoved) {
+    function _closeMatchOrders(address account, uint256 amount) internal returns (uint256 totalRemoved) {
         MatchOrder[] storage matches = _userMatchedOrders[account];
         uint256 remainingAmount = amount;
 
@@ -233,10 +200,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
             uint256 index = i - 1;
 
             if (remainingAmount != 0) {
-                uint256 amountToRemove = Math.min(
-                    remainingAmount,
-                    matches[index].lCollateral
-                );
+                uint256 amountToRemove = Math.min(remainingAmount, matches[index].lCollateral);
                 uint256 borrowAmount = uint256(matches[index].bCollateral);
 
                 if (amountToRemove != matches[index].lCollateral) {
@@ -285,9 +249,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function amountMatched(
-        address account
-    ) external view returns (uint256 amount) {
+    function amountMatched(address account) external view returns (uint256 amount) {
         uint256 len = _userMatchedOrders[account].length;
         for (uint256 i = 0; i != len; ++i) {
             amount += _userMatchedOrders[account][i].lCollateral;
@@ -295,17 +257,12 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function matchedOrder(
-        address account,
-        uint256 index
-    ) external view returns (MatchOrder memory) {
+    function matchedOrder(address account, uint256 index) external view returns (MatchOrder memory) {
         return _userMatchedOrders[account][index];
     }
 
     /// @inheritdoc IOrderbook
-    function matchedOrderCount(
-        address account
-    ) external view returns (uint256) {
+    function matchedOrderCount(address account) external view returns (uint256) {
         return _userMatchedOrders[account].length;
     }
 
