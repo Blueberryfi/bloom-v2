@@ -27,6 +27,9 @@ library BloomErrors {
     /// @notice Emitted when the owner tries to set the spread to a value that is too large.
     error InvalidSpread();
 
+    /// @notice Emitted when getting the price of a Tby that does not exist.
+    error InvalidTby();
+
     /*///////////////////////////////////////////////////////////////
                             Orderbook Errors    
     //////////////////////////////////////////////////////////////*/

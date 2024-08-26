@@ -10,6 +10,7 @@
 pragma solidity ^0.8.26;
 
 import {Test} from "forge-std/Test.sol";
+import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
 
 import {BloomFactory} from "@bloom-v2/BloomFactory.sol";
 import {BloomPool} from "@bloom-v2/BloomPool.sol";
@@ -19,6 +20,8 @@ import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockPriceFeed} from "./mocks/MockPriceFeed.sol";
 
 abstract contract BloomTestSetup is Test {
+    using FpMath for uint256;
+
     BloomFactory internal bloomFactory;
     BloomPool internal bloomPool;
     Tby internal tby;
@@ -62,6 +65,15 @@ abstract contract BloomTestSetup is Test {
         vm.startPrank(account);
         stable.approve(address(bloomPool), amount);
         bloomPool.lendOrder(amount);
+        vm.stopPrank();
+    }
+
+    function _fillOrder(address lender, uint256 amount) internal returns (uint256 borrowAmount) {
+        borrowAmount = amount.divWadUp(initialLeverage);
+        stable.mint(borrower, borrowAmount);
+        vm.startPrank(borrower);
+        stable.approve(address(bloomPool), borrowAmount);
+        bloomPool.fillOrder(lender, amount);
         vm.stopPrank();
     }
 }

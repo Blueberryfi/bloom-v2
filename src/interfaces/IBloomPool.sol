@@ -49,9 +49,12 @@ interface IBloomPool is IOrderbook, IPoolStorage {
      * @notice Emitted when the market maker swaps in rwa tokens for assets.
      * @param id The unique identifier of the TBY.
      * @param account The address of the user who swapped in.
-     * @param amount Amount of rwa tokens swapped in.
+     * @param rwaAmountIn Amount of rwa tokens swapped in.
+     * @param assetAmountOut Amount of assets received.
      */
-    event MarketMakerSwappedIn(uint256 indexed id, address indexed account, uint256 amount);
+    event MarketMakerSwappedIn(
+        uint256 indexed id, address indexed account, uint256 rwaAmountIn, uint256 assetAmountOut
+    );
 
     /**
      * @notice Emitted when the market maker swaps out rwa tokens for assets.
@@ -76,6 +79,12 @@ interface IBloomPool is IOrderbook, IPoolStorage {
      * @param amount The amount of rewards being redeemed.
      */
     event BorrowerRedeemed(address indexed account, uint256 indexed id, uint256 amount);
+
+    /**
+     * @notice Emitted when the RWA price feed is set.
+     * @param priceFeed The address of the RWA price feed.
+     */
+    event RwaPriceFeedSet(address indexed priceFeed);
 
     /*///////////////////////////////////////////////////////////////
                             Functions
@@ -104,6 +113,33 @@ interface IBloomPool is IOrderbook, IPoolStorage {
      */
     function getRate(uint256 id) external view returns (uint256);
 
+    /// @notice Returns the last minted TBY id.
+    function lastMintedId() external view returns (uint256);
+
     /// @notice Returns the RWAs price feed address.
     function rwaPriceFeed() external view returns (address);
+
+    /// @notice Returns the TbyCollateral struct containing the breakdown of collateral for a given Tby ID.
+    function tbyCollateral(uint256 id) external view returns (TbyCollateral memory);
+
+    /// @notice Returns the TbyMaturity struct containing the start and end timestamps of a given Tby ID.
+    function tbyMaturity(uint256 id) external view returns (TbyMaturity memory);
+
+    /// @notice Returns the TbyPrice struct containing RWA price at the start and end of a Tby's lifetime.
+    function tbyRwaPricing(uint256 id) external view returns (RwaPrice memory);
+
+    /// @notice Returns the total amount of assets a borrower has contributed to for a given Tby ID.
+    function borrowerAmount(address account, uint256 id) external view returns (uint256);
+
+    /// @notice Returns the total amount of assets all the borrowers have contributed to for a given Tby ID.
+    function totalBorrowed(uint256 id) external view returns (uint256);
+
+    /// @notice Returns the total amount of assets currently available for lender's to redeem for a given Tby ID.
+    function availableLenderReturns(uint256 id) external view returns (uint256);
+
+    /// @notice Returns the total amount of assets currently available for borrower's to redeem for a given Tby ID.
+    function availableBorrowerReturns(uint256 id) external view returns (uint256);
+
+    /// @notice Returns if a Tby is eligible for redemption.
+    function isTbyRedeemable(uint256 id) external view returns (bool);
 }

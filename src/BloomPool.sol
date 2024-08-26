@@ -10,6 +10,7 @@
 pragma solidity ^0.8.26;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@solady/utils/ReentrancyGuard.sol";
 import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
 import {AggregatorV3Interface} from "@chainlink/shared/interfaces/AggregatorV3Interface.sol";
 
@@ -25,7 +26,7 @@ import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
  * @notice RWA pool contract facilitating the creation of Term Bound Yield Tokens through lending underlying tokens
  *         to market markers for 6 month terms.
  */
-contract BloomPool is IBloomPool, Orderbook {
+contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using Math for uint256;
 
@@ -51,7 +52,7 @@ contract BloomPool is IBloomPool, Orderbook {
     /// @notice Mapping of TBY ids to the RWA pricing ranges.
     mapping(uint256 => RwaPrice) private _tbyIdToRwaPrice;
 
-    /// @notice Mapping of borrowers to their token shares for each TBY id.
+    /// @notice Mapping of borrowers to their token amounts for each TBY id.
     mapping(address => mapping(uint256 => uint256)) private _borrowerAmounts;
 
     /// @notice A mapping of the TBY id to the total amount of funds contributed by borrowers.
@@ -100,7 +101,7 @@ contract BloomPool is IBloomPool, Orderbook {
         require(_tby.balanceOf(msg.sender, id) >= amount, Errors.InsufficientBalance());
         uint256 totalSupply = _tby.totalSupply(id);
 
-        reward = _tbyLenderReturns[id].mulWad(amount).divWadUp(totalSupply);
+        reward = _tbyLenderReturns[id].mulWad(amount).divWad(totalSupply);
         require(reward > 0, Errors.ZeroRewards());
 
         _tbyLenderReturns[id] -= reward;
@@ -113,10 +114,10 @@ contract BloomPool is IBloomPool, Orderbook {
     /// @inheritdoc IBloomPool
     function redeemBorrower(uint256 id) external override isRedeemable(id) returns (uint256 reward) {
         uint256 borrowerReturns = _tbyBorrowerReturns[id];
-        uint256 totalBorrowed = _idToTotalBorrowed[id];
+        uint256 totalBorrowAmount = _idToTotalBorrowed[id];
         uint256 borrowAmount = _borrowerAmounts[msg.sender][id];
 
-        reward = borrowerReturns.mulWad(borrowAmount).divWadUp(totalBorrowed);
+        reward = borrowerReturns.mulWad(borrowAmount).divWad(totalBorrowAmount);
         require(reward > 0, Errors.ZeroRewards());
 
         _tbyBorrowerReturns[id] -= reward;
@@ -139,6 +140,7 @@ contract BloomPool is IBloomPool, Orderbook {
     function swapIn(address[] memory accounts, uint256 assetAmount)
         external
         KycMarketMaker
+        nonReentrant
         returns (uint256 id, uint256 amountSwapped)
     {
         // Get the TBY id to mint
@@ -159,7 +161,6 @@ contract BloomPool is IBloomPool, Orderbook {
             assetAmount -= amountUsed;
             amountSwapped += amountUsed;
             if (assetAmount == 0) break;
-            _tby.mint(id, accounts[i], amountSwapped);
         }
 
         // Initialize the starting price of the RWA token if it has not been set
@@ -170,13 +171,13 @@ contract BloomPool is IBloomPool, Orderbook {
             _tbyIdToRwaPrice[id].startPrice = uint128(currentPrice);
         }
 
-        uint256 rwaAmount = (currentPrice * amountSwapped) / Math.WAD;
+        uint256 rwaAmount = (amountSwapped * (10 ** 18 - _assetDecimals)).divWadUp(currentPrice);
         _idToCollateral[id] = TbyCollateral(0, uint128(rwaAmount));
 
         IERC20(_rwa).safeTransferFrom(msg.sender, address(this), rwaAmount);
         IERC20(_asset).safeTransfer(msg.sender, amountSwapped);
 
-        emit MarketMakerSwappedIn(id, msg.sender, rwaAmount);
+        emit MarketMakerSwappedIn(id, msg.sender, rwaAmount, amountSwapped);
     }
 
     /**
@@ -236,6 +237,10 @@ contract BloomPool is IBloomPool, Orderbook {
         TbyMaturity memory maturity = _idToMaturity[id];
         RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
 
+        if (rwaPrice.startPrice == 0) {
+            revert Errors.InvalidTby();
+        }
+
         uint256 time = block.timestamp;
         // If the TBY has not started accruing interest, return 1e18.
         if (time <= maturity.start) {
@@ -244,12 +249,16 @@ contract BloomPool is IBloomPool, Orderbook {
 
         // If the TBY has matured, and is eligible for redemption, calculate price based on the end price.
         if (time >= maturity.end && rwaPrice.endPrice != 0) {
-            return Math.WAD + (rwaPrice.endPrice * _spread) / rwaPrice.startPrice;
+            return Math.WAD + ((rwaPrice.endPrice * _spread) / rwaPrice.startPrice);
         }
 
         // If the TBY has matured, and is not-eligible for redemption due to market maker delay,
         //     calculate price based on the current price of the RWA token via the price feed.
-        return Math.WAD + (_rwaPrice() * _spread) / rwaPrice.startPrice;
+        return Math.WAD + ((_rwaPrice() * _spread) / rwaPrice.startPrice);
+    }
+
+    function lastMintedId() external view returns (uint256) {
+        return _lastMintedId;
     }
 
     /// @inheritdoc IBloomPool
@@ -257,8 +266,40 @@ contract BloomPool is IBloomPool, Orderbook {
         return _rwaPriceFeed;
     }
 
+    function tbyCollateral(uint256 id) external view returns (TbyCollateral memory) {
+        return _idToCollateral[id];
+    }
+
+    function tbyMaturity(uint256 id) external view returns (TbyMaturity memory) {
+        return _idToMaturity[id];
+    }
+
+    function tbyRwaPricing(uint256 id) external view returns (RwaPrice memory) {
+        return _tbyIdToRwaPrice[id];
+    }
+
+    function borrowerAmount(address account, uint256 id) external view returns (uint256) {
+        return _borrowerAmounts[account][id];
+    }
+
+    function totalBorrowed(uint256 id) external view returns (uint256) {
+        return _idToTotalBorrowed[id];
+    }
+
+    function availableLenderReturns(uint256 id) external view returns (uint256) {
+        return _tbyLenderReturns[id];
+    }
+
+    function availableBorrowerReturns(uint256 id) external view returns (uint256) {
+        return _tbyBorrowerReturns[id];
+    }
+
+    function isTbyRedeemable(uint256 id) external view returns (bool) {
+        return _isTbyRedeemable[id];
+    }
+
     /// @notice Returns the current price of the RWA token.
-    function _rwaPrice() public view returns (uint256) {
+    function _rwaPrice() private view returns (uint256) {
         (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(_rwaPriceFeed).latestRoundData();
         require(updatedAt >= block.timestamp - 1 days, Errors.OutOfDate());
         uint256 scaler = 10 ** (18 - _rwaPriceFeedDecimals);
@@ -284,26 +325,34 @@ contract BloomPool is IBloomPool, Orderbook {
             uint256 index = i - 1;
 
             if (remainingAmount != 0) {
-                uint256 amountToRemove = Math.min(remainingAmount, matches[index].amount);
+                (uint256 lenderFunds, uint256 borrowerFunds) =
+                    _calculateRemovalAmounts(remainingAmount, matches[index].lCollateral, matches[index].bCollateral);
+                uint256 amountToRemove = lenderFunds + borrowerFunds;
+
+                if (amountToRemove == 0) break;
                 remainingAmount -= amountToRemove;
 
-                uint256 borrowerAmount = amountToRemove.divWadUp(matches[index].leverage);
-                _borrowerAmounts[account][id] += borrowerAmount;
-                borrowerAmountConverted += borrowerAmount;
+                _borrowerAmounts[matches[index].borrower][id] += borrowerFunds;
+                borrowerAmountConverted += borrowerFunds;
 
-                if (amountToRemove == matches[index].amount) {
+                if (lenderFunds == matches[index].lCollateral) {
                     matches.pop();
                 } else {
-                    matches[index].amount -= amountToRemove;
+                    matches[index].lCollateral -= uint128(lenderFunds);
                 }
             } else {
                 break;
             }
         }
-        _idToTotalBorrowed[id] += borrowerAmountConverted;
-        uint256 totalRemoved = amount - remainingAmount;
-        _matchedDepth -= totalRemoved;
-        amountUsed = totalRemoved + borrowerAmountConverted;
+
+        amountUsed = amount - remainingAmount;
+        if (amountUsed != 0) {
+            _idToTotalBorrowed[id] += borrowerAmountConverted;
+            uint256 totalLenderFunds = amountUsed - borrowerAmountConverted;
+            _matchedDepth -= totalLenderFunds;
+
+            _tby.mint(id, account, totalLenderFunds);
+        }
     }
 
     /// @notice Logic to set the price feed for the RWA token.
@@ -314,5 +363,21 @@ contract BloomPool is IBloomPool, Orderbook {
 
         _rwaPriceFeed = rwaPriceFeed_;
         _rwaPriceFeedDecimals = AggregatorV3Interface(rwaPriceFeed_).decimals();
+        emit RwaPriceFeedSet(rwaPriceFeed_);
+    }
+
+    function _calculateRemovalAmounts(uint256 remainingAmount, uint128 lCollateral, uint128 bCollateral)
+        internal
+        pure
+        returns (uint256 lenderFunds, uint256 borrowerFunds)
+    {
+        uint256 totalCollateral = lCollateral + bCollateral;
+
+        if (remainingAmount >= totalCollateral) {
+            return (lCollateral, bCollateral);
+        }
+
+        lenderFunds = remainingAmount * lCollateral / totalCollateral;
+        borrowerFunds = remainingAmount - lenderFunds;
     }
 }
