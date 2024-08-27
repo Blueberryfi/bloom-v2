@@ -17,14 +17,10 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
+import "forge-std/Console2.sol";
 
 contract BloomPoolFuzzTest is BloomTestSetup {
     using FpMath for uint256;
-
-    address[] public lenders;
-    address[] public borrowers;
-    address[] public filledOrders;
-    uint256[] public filledAmounts;
 
     function setUp() public override {
         super.setUp();
@@ -45,7 +41,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
 
         (, int256 answer,,,) = priceFeed.latestRoundData();
         uint256 answerScaled = uint256(answer) * (10 ** (18 - priceFeed.decimals()));
-        uint256 rwaAmount = (assetsNeeded * (10 ** 18 - stable.decimals())).divWadUp(answerScaled);
+        uint256 rwaAmount = (assetsNeeded * (10 ** (18 - stable.decimals()))).divWadUp(answerScaled);
 
         vm.startPrank(marketMaker);
 
@@ -112,10 +108,9 @@ contract BloomPoolFuzzTest is BloomTestSetup {
 
         (, int256 answer,,,) = priceFeed.latestRoundData();
         uint256 answerScaled = uint256(answer) * (10 ** (18 - priceFeed.decimals()));
-        uint256 rwaAmount = (swapAmount * (10 ** 18 - stable.decimals())).divWadUp(answerScaled);
+        uint256 rwaAmount = (swapAmount * (10 ** (18 - stable.decimals()))).divWadUp(answerScaled);
 
         vm.startPrank(marketMaker);
-
         // Mint RWA Tokens to the market maker
         billToken.mint(marketMaker, rwaAmount);
         billToken.approve(address(bloomPool), rwaAmount);
@@ -204,5 +199,61 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         assertApproxEqRelDecimal(bloomPool.borrowerAmount(borrower, 0), expectedBorrowerAmount, 0.9999e18, 6);
         assertApproxEqRelDecimal(bloomPool.totalBorrowed(0), expectedBorrowerAmount, 0.9999e18, 6);
         assertEq(bloomPool.isTbyRedeemable(0), false);
+        assertEq(bloomPool.lastMintedId(), 0);
+    }
+
+    function testFuzz_SwapOut(uint256 amount) public {
+        amount = bound(amount, 1e6, 100_000_000_000e6);
+        _createLendOrder(alice, amount);
+        uint256 borrowAmount = _fillOrder(alice, amount);
+        lenders.push(alice);
+        uint256 totalCapital = amount + borrowAmount;
+
+        uint256 startingTime = 604801; // TODO: Replace with block.timestamp once foundry bug is fixed
+
+        _swapIn(totalCapital);
+
+        // Fast forward to just before the TBY matures & update price feed
+        skip(180 days);
+        priceFeed.setLatestRoundData(2, 112e8, block.timestamp, block.timestamp, 0);
+
+        uint256 amountNeeeded = (totalCapital * 112e18) / 110e18;
+        uint256 rwaBalance = billToken.balanceOf(address(bloomPool));
+
+        vm.startPrank(marketMaker);
+        stable.mint(marketMaker, amountNeeeded);
+        stable.approve(address(bloomPool), amountNeeeded);
+
+        vm.expectEmit(true, true, false, true);
+        emit IBloomPool.MarketMakerSwappedOut(0, marketMaker, rwaBalance);
+        uint256 assetAmount = bloomPool.swapOut(0, rwaBalance);
+
+        // Validate Token Balances
+        assertEq(stable.balanceOf(address(bloomPool)), amountNeeeded);
+        assertEq(stable.balanceOf(address(bloomPool)), assetAmount);
+        assertEq(billToken.balanceOf(address(bloomPool)), 0);
+
+        // Validate TBY State
+        IBloomPool.TbyCollateral memory collateral = bloomPool.tbyCollateral(0);
+        assertEq(collateral.assetAmount, amountNeeeded);
+        assertEq(collateral.rwaAmount, 0);
+
+        IBloomPool.TbyMaturity memory maturity = bloomPool.tbyMaturity(0);
+        assertEq(maturity.start, startingTime);
+        assertEq(maturity.end, startingTime + 180 days);
+
+        IBloomPool.RwaPrice memory rwaPricing = bloomPool.tbyRwaPricing(0);
+        assertEq(rwaPricing.startPrice, 110e18);
+        assertEq(rwaPricing.endPrice, 112e18);
+
+        // Validate Lender and Borrower returns
+        uint256 tbyTotalSupply = tby.totalSupply(0);
+        uint256 tbyRate = bloomPool.getRate(0);
+
+        uint256 expectedLenderReturns = tbyTotalSupply.mulWad(tbyRate);
+        uint256 expectedBorrowerReturns = amountNeeeded - expectedLenderReturns;
+
+        assertEq(bloomPool.lenderReturns(0), expectedLenderReturns);
+        assertEq(bloomPool.borrowerReturns(0), expectedBorrowerReturns);
     }
 }

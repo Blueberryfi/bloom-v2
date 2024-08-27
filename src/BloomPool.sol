@@ -35,7 +35,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice The last TBY id that was minted.
-    uint256 private _lastMintedId;
+    uint256 private _nextTbyId;
 
     /// @notice Price feed for the RWA token.
     address private _rwaPriceFeed;
@@ -113,11 +113,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
     /// @inheritdoc IBloomPool
     function redeemBorrower(uint256 id) external override isRedeemable(id) returns (uint256 reward) {
-        uint256 borrowerReturns = _tbyBorrowerReturns[id];
+        uint256 borrowerReturns_ = _tbyBorrowerReturns[id];
         uint256 totalBorrowAmount = _idToTotalBorrowed[id];
         uint256 borrowAmount = _borrowerAmounts[msg.sender][id];
 
-        reward = borrowerReturns.mulWad(borrowAmount).divWad(totalBorrowAmount);
+        reward = borrowerReturns_.mulWad(borrowAmount).divWad(totalBorrowAmount);
         require(reward > 0, Errors.ZeroRewards());
 
         _tbyBorrowerReturns[id] -= reward;
@@ -144,11 +144,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         returns (uint256 id, uint256 amountSwapped)
     {
         // Get the TBY id to mint
-        id = _lastMintedId;
+        id = _nextTbyId;
         TbyMaturity memory maturity = _idToMaturity[id];
 
         if (block.timestamp > maturity.start + 48 hours) {
-            id = _lastMintedId++;
+            id = _nextTbyId++;
             uint128 start = uint128(block.timestamp);
             uint128 end = start + 180 days;
             _idToMaturity[id] = TbyMaturity(start, end);
@@ -171,7 +171,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             _tbyIdToRwaPrice[id].startPrice = uint128(currentPrice);
         }
 
-        uint256 rwaAmount = (amountSwapped * (10 ** 18 - _assetDecimals)).divWadUp(currentPrice);
+        uint256 rwaAmount = (amountSwapped * (10 ** (18 - _assetDecimals))).divWadUp(currentPrice);
         _idToCollateral[id] = TbyCollateral(0, uint128(rwaAmount));
 
         IERC20(_rwa).safeTransferFrom(msg.sender, address(this), rwaAmount);
@@ -190,22 +190,24 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
      */
     function swapOut(uint256 id, uint256 rwaAmount) external KycMarketMaker returns (uint256 assetAmount) {
         require(rwaAmount > 0, Errors.ZeroAmount());
-        require(IERC20(_rwa).balanceOf(msg.sender) >= rwaAmount, Errors.InsufficientBalance());
         require(_idToMaturity[id].end <= block.timestamp, Errors.TBYNotMatured());
 
         RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
         TbyCollateral storage collateral = _idToCollateral[id];
         uint256 currentPrice = _rwaPrice();
 
+        // TODO: Need to address edge case if RWA price decreases.
         if (rwaPrice.endPrice == 0) {
             _tbyIdToRwaPrice[id].endPrice = uint128(currentPrice);
         }
 
-        uint256 tbyAmount = uint256(rwaPrice.startPrice).mulWad(rwaAmount);
-        assetAmount = (rwaAmount * (10 ** _assetDecimals)) / currentPrice;
+        uint256 percentSwapped = rwaAmount.divWad(collateral.rwaAmount);
+        uint256 tbyAmount =
+            percentSwapped != Math.WAD ? _tby.totalSupply(id).mulWadUp(percentSwapped) : _tby.totalSupply(id);
 
-        uint256 lenderReturn = (getRate(id) * tbyAmount) / (10 ** (18 - _assetDecimals));
-        uint256 borrowerReturn = tbyAmount - lenderReturn;
+        assetAmount = uint256(currentPrice).mulWad(rwaAmount) / (10 ** (_rwaDecimals - _assetDecimals));
+        uint256 lenderReturn = getRate(id).mulWad(tbyAmount);
+        uint256 borrowerReturn = assetAmount - lenderReturn;
 
         _tbyBorrowerReturns[id] += borrowerReturn;
         _tbyLenderReturns[id] += lenderReturn;
@@ -216,7 +218,6 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         if (collateral.rwaAmount == 0) {
             _isTbyRedeemable[id] = true;
         }
-
         IERC20(_asset).safeTransferFrom(msg.sender, address(this), assetAmount);
         IERC20(_rwa).safeTransfer(msg.sender, rwaAmount);
 
@@ -249,16 +250,16 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
         // If the TBY has matured, and is eligible for redemption, calculate price based on the end price.
         if (time >= maturity.end && rwaPrice.endPrice != 0) {
-            return Math.WAD + ((rwaPrice.endPrice * _spread) / rwaPrice.startPrice);
+            return ((rwaPrice.endPrice * _spread) / rwaPrice.startPrice);
         }
 
         // If the TBY has matured, and is not-eligible for redemption due to market maker delay,
         //     calculate price based on the current price of the RWA token via the price feed.
-        return Math.WAD + ((_rwaPrice() * _spread) / rwaPrice.startPrice);
+        return ((_rwaPrice() * _spread) / rwaPrice.startPrice);
     }
 
     function lastMintedId() external view returns (uint256) {
-        return _lastMintedId;
+        return _nextTbyId - 1;
     }
 
     /// @inheritdoc IBloomPool
@@ -286,11 +287,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         return _idToTotalBorrowed[id];
     }
 
-    function availableLenderReturns(uint256 id) external view returns (uint256) {
+    function lenderReturns(uint256 id) external view returns (uint256) {
         return _tbyLenderReturns[id];
     }
 
-    function availableBorrowerReturns(uint256 id) external view returns (uint256) {
+    function borrowerReturns(uint256 id) external view returns (uint256) {
         return _tbyBorrowerReturns[id];
     }
 
@@ -303,7 +304,6 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(_rwaPriceFeed).latestRoundData();
         require(updatedAt >= block.timestamp - 1 days, Errors.OutOfDate());
         uint256 scaler = 10 ** (18 - _rwaPriceFeedDecimals);
-
         return uint256(answer) * scaler;
     }
 
@@ -377,7 +377,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             return (lCollateral, bCollateral);
         }
 
-        lenderFunds = remainingAmount * lCollateral / totalCollateral;
+        lenderFunds = (remainingAmount * lCollateral) / totalCollateral;
         borrowerFunds = remainingAmount - lenderFunds;
     }
 }

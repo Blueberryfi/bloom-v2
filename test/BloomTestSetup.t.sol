@@ -39,6 +39,11 @@ abstract contract BloomTestSetup is Test {
     uint256 internal initialLeverage = 50e18;
     uint256 internal initialSpread = 0.995e18;
 
+    address[] public lenders;
+    address[] public borrowers;
+    address[] public filledOrders;
+    uint256[] public filledAmounts;
+
     function setUp() public virtual {
         bloomFactory = new BloomFactory(owner);
         stable = new MockERC20("Mock USDC", "USDC", 6);
@@ -75,5 +80,27 @@ abstract contract BloomTestSetup is Test {
         stable.approve(address(bloomPool), borrowAmount);
         bloomPool.fillOrder(lender, amount);
         vm.stopPrank();
+    }
+
+    function _swapIn(uint256 stableAmount) internal returns (uint256 id, uint256 assetAmount) {
+        (, int256 answer,,,) = priceFeed.latestRoundData();
+        uint256 answerScaled = uint256(answer) * (10 ** (18 - priceFeed.decimals()));
+        uint256 rwaAmount = (stableAmount * (10 ** (18 - stable.decimals()))).divWadUp(answerScaled);
+
+        vm.startPrank(marketMaker);
+        billToken.mint(marketMaker, rwaAmount);
+        billToken.approve(address(bloomPool), rwaAmount);
+        return bloomPool.swapIn(lenders, stableAmount);
+    }
+
+    function _swapOut(uint256 id, uint256 stableAmount) internal returns (uint256 assetAmount) {
+        (, int256 answer,,,) = priceFeed.latestRoundData();
+        uint256 answerScaled = uint256(answer) * (10 ** (18 - priceFeed.decimals()));
+        uint256 rwaAmount = (stableAmount * (10 ** (18 - stable.decimals()))).divWadUp(answerScaled);
+
+        vm.startPrank(marketMaker);
+        stable.mint(marketMaker, stableAmount);
+        stable.approve(address(bloomPool), stableAmount);
+        return bloomPool.swapOut(id, rwaAmount);
     }
 }

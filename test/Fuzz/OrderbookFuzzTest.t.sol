@@ -20,11 +20,6 @@ import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 contract OrderbookFuzzTest is BloomTestSetup {
     using FpMath for uint256;
 
-    address[] public lenders;
-    address[] public borrowers;
-    address[] public filledOrders;
-    uint256[] public filledAmounts;
-
     function setUp() public override {
         super.setUp();
         vm.startPrank(owner);

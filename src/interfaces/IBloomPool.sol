@@ -135,10 +135,10 @@ interface IBloomPool is IOrderbook, IPoolStorage {
     function totalBorrowed(uint256 id) external view returns (uint256);
 
     /// @notice Returns the total amount of assets currently available for lender's to redeem for a given Tby ID.
-    function availableLenderReturns(uint256 id) external view returns (uint256);
+    function lenderReturns(uint256 id) external view returns (uint256);
 
     /// @notice Returns the total amount of assets currently available for borrower's to redeem for a given Tby ID.
-    function availableBorrowerReturns(uint256 id) external view returns (uint256);
+    function borrowerReturns(uint256 id) external view returns (uint256);
 
     /// @notice Returns if a Tby is eligible for redemption.
     function isTbyRedeemable(uint256 id) external view returns (bool);
