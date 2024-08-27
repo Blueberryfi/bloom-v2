@@ -100,10 +100,10 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     function redeemLender(uint256 id, uint256 amount) external override isRedeemable(id) returns (uint256 reward) {
         require(_tby.balanceOf(msg.sender, id) >= amount, Errors.InsufficientBalance());
         uint256 totalSupply = _tby.totalSupply(id);
-
-        reward = _tbyLenderReturns[id].mulWad(amount).divWad(totalSupply);
+        reward = (_tbyLenderReturns[id] * amount) / totalSupply;
         require(reward > 0, Errors.ZeroRewards());
 
+        _idToCollateral[id].assetAmount -= uint128(reward);
         _tbyLenderReturns[id] -= reward;
         _tby.burn(id, msg.sender, amount);
 
@@ -113,13 +113,13 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
     /// @inheritdoc IBloomPool
     function redeemBorrower(uint256 id) external override isRedeemable(id) returns (uint256 reward) {
-        uint256 borrowerReturns_ = _tbyBorrowerReturns[id];
         uint256 totalBorrowAmount = _idToTotalBorrowed[id];
         uint256 borrowAmount = _borrowerAmounts[msg.sender][id];
 
-        reward = borrowerReturns_.mulWad(borrowAmount).divWad(totalBorrowAmount);
+        reward = (_tbyBorrowerReturns[id] * borrowAmount) / totalBorrowAmount;
         require(reward > 0, Errors.ZeroRewards());
 
+        _idToCollateral[id].assetAmount -= uint128(reward);
         _tbyBorrowerReturns[id] -= reward;
         _borrowerAmounts[msg.sender][id] -= borrowAmount;
 
@@ -202,6 +202,12 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         }
 
         uint256 percentSwapped = rwaAmount.divWad(collateral.rwaAmount);
+
+        if (percentSwapped > Math.WAD) {
+            percentSwapped = Math.WAD;
+            rwaAmount = collateral.rwaAmount;
+        }
+
         uint256 tbyAmount =
             percentSwapped != Math.WAD ? _tby.totalSupply(id).mulWadUp(percentSwapped) : _tby.totalSupply(id);
 

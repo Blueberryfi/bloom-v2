@@ -209,7 +209,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         lenders.push(alice);
         uint256 totalCapital = amount + borrowAmount;
 
-        uint256 startingTime = 604801; // TODO: Replace with block.timestamp once foundry bug is fixed
+        uint256 startingTime = vm.getBlockTimestamp();
 
         _swapIn(totalCapital);
 
@@ -255,5 +255,71 @@ contract BloomPoolFuzzTest is BloomTestSetup {
 
         assertEq(bloomPool.lenderReturns(0), expectedLenderReturns);
         assertEq(bloomPool.borrowerReturns(0), expectedBorrowerReturns);
+    }
+
+    function testFuzz_Redemptions(uint256[3] memory amounts) public {
+        amounts[0] = bound(amounts[0], 1e6, 100_000_000_000e6);
+        amounts[1] = bound(amounts[1], 1e6, 100_000_000_000e6);
+        amounts[2] = bound(amounts[2], 1e6, 100_000_000_000e6);
+
+        _createLendOrder(alice, amounts[0]);
+        _fillOrder(alice, amounts[0]);
+        lenders.push(alice);
+
+        _createLendOrder(bob, amounts[1]);
+        _fillOrder(bob, amounts[1]);
+        lenders.push(bob);
+
+        _createLendOrder(rando, amounts[2]);
+        _fillOrder(rando, amounts[2]);
+        lenders.push(rando);
+
+        uint256 stableBalance = stable.balanceOf(address(bloomPool));
+        _swapIn(stableBalance);
+
+        // Fast forward to just before the TBY matures & update price feed
+        skip(180 days);
+        priceFeed.setLatestRoundData(2, 112e8, block.timestamp, block.timestamp, 0);
+
+        uint256 amountNeeeded = (stableBalance * 112e18) / 110e18;
+        uint256 rwaBalance = billToken.balanceOf(address(bloomPool));
+
+        vm.startPrank(marketMaker);
+        stable.mint(marketMaker, amountNeeeded);
+        stable.approve(address(bloomPool), amountNeeeded);
+
+        vm.expectEmit(true, true, false, true);
+        emit IBloomPool.MarketMakerSwappedOut(0, marketMaker, rwaBalance);
+        bloomPool.swapOut(0, rwaBalance);
+
+        vm.startPrank(alice);
+        bloomPool.redeemLender(0, tby.balanceOf(alice, 0));
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        bloomPool.redeemLender(0, tby.balanceOf(bob, 0));
+        vm.stopPrank();
+
+        vm.startPrank(rando);
+        bloomPool.redeemLender(0, tby.balanceOf(rando, 0));
+        vm.stopPrank();
+
+        uint256 borrowerReturns = bloomPool.borrowerReturns(0);
+
+        vm.startPrank(borrower);
+        bloomPool.redeemBorrower(0);
+        vm.stopPrank();
+
+        assertEq(stable.balanceOf(address(bloomPool)), 0);
+
+        uint256 tbyRate = bloomPool.getRate(0);
+        assertApproxEqRelDecimal(stable.balanceOf(alice), amounts[0] * tbyRate / 1e18, 0.0001e18, 6);
+        assertApproxEqRelDecimal(stable.balanceOf(bob), amounts[1] * tbyRate / 1e18, 0.0001e18, 6);
+        assertApproxEqRelDecimal(stable.balanceOf(rando), amounts[2] * tbyRate / 1e18, 0.0001e18, 6);
+        assertEq(stable.balanceOf(borrower), borrowerReturns);
+
+        IBloomPool.TbyCollateral memory collateral = bloomPool.tbyCollateral(0);
+        assertEq(collateral.assetAmount, 0);
+        assertEq(collateral.rwaAmount, 0);
     }
 }
