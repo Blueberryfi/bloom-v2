@@ -192,11 +192,10 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         require(rwaAmount > 0, Errors.ZeroAmount());
         require(_idToMaturity[id].end <= block.timestamp, Errors.TBYNotMatured());
 
-        RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
+        RwaPrice storage rwaPrice = _tbyIdToRwaPrice[id];
         TbyCollateral storage collateral = _idToCollateral[id];
         uint256 currentPrice = _rwaPrice();
 
-        // TODO: Need to address edge case if RWA price decreases.
         if (rwaPrice.endPrice == 0) {
             _tbyIdToRwaPrice[id].endPrice = uint128(currentPrice);
         }
@@ -208,11 +207,26 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             rwaAmount = collateral.rwaAmount;
         }
 
-        uint256 tbyAmount =
-            percentSwapped != Math.WAD ? _tby.totalSupply(id).mulWadUp(percentSwapped) : _tby.totalSupply(id);
+        uint256 tbyTotalSupply = _tby.totalSupply(id);
+        uint256 tbyAmount = percentSwapped != Math.WAD ? tbyTotalSupply.mulWadUp(percentSwapped) : tbyTotalSupply;
 
         assetAmount = uint256(currentPrice).mulWad(rwaAmount) / (10 ** (_rwaDecimals - _assetDecimals));
+
         uint256 lenderReturn = getRate(id).mulWad(tbyAmount);
+        // If the price has dropped between the end of the TBY's maturity date and when the market maker swap finishes,
+        //     only the borrower's returns will be negatively impacted, unless the rate of the drop in price is so large,
+        //     that the lender's returns are less than their implied rate. In this case, the rate will be adjusted to
+        //     reflect the price of the new assets entering the pool. This adjustment is to ensure that lender returns always
+        //     match up with the implied rate of the TBY.
+        if (currentPrice < rwaPrice.endPrice) {
+            if (lenderReturn > assetAmount) {
+                lenderReturn = assetAmount;
+                uint256 accumulatedCollateral = _tbyLenderReturns[id] + lenderReturn;
+                uint256 newRate = accumulatedCollateral.divWad(_tby.totalSupply(id));
+                uint256 adjustedEndPrice = (newRate * rwaPrice.startPrice) / _spread;
+                rwaPrice.endPrice = uint128(adjustedEndPrice);
+            }
+        }
         uint256 borrowerReturn = assetAmount - lenderReturn;
 
         _tbyBorrowerReturns[id] += borrowerReturn;

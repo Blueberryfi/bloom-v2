@@ -17,7 +17,6 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
-import "forge-std/Console2.sol";
 
 contract BloomPoolFuzzTest is BloomTestSetup {
     using FpMath for uint256;
@@ -321,5 +320,64 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         IBloomPool.TbyCollateral memory collateral = bloomPool.tbyCollateral(0);
         assertEq(collateral.assetAmount, 0);
         assertEq(collateral.rwaAmount, 0);
+    }
+
+    function testFuzz_SwapOutAndRedeemWithPriceDrop(uint256 amount) public {
+        amount = bound(amount, 1e6, 100_000_000_000e6);
+        _createLendOrder(alice, amount);
+        _fillOrder(alice, amount);
+        lenders.push(alice);
+
+        uint256 stableBalance = stable.balanceOf(address(bloomPool));
+        _swapIn(stableBalance);
+
+        // Fast forward to the maturity of the TBY and increase the price.
+        skip(180 days);
+        priceFeed.setLatestRoundData(2, 112e8, block.timestamp, block.timestamp, 0);
+
+        uint256 amountNeeeded = (stableBalance * 112e18) / 110e18;
+        uint256 rwaBalance = billToken.balanceOf(address(bloomPool));
+
+        vm.startPrank(marketMaker);
+        stable.mint(marketMaker, amountNeeeded);
+        stable.approve(address(bloomPool), amountNeeeded);
+
+        // Complete half of the needed swap
+        bloomPool.swapOut(0, rwaBalance / 2);
+
+        // Validate that users cannot redeem their TBYs
+        assertEq(bloomPool.isTbyRedeemable(0), false);
+
+        // Fast forward to after the TBY has matured but before all of the RWA has been swapped out.
+        // Have a dramatic price drop
+        skip(1 days);
+        priceFeed.setLatestRoundData(2, 50e8, block.timestamp, block.timestamp, 0);
+        uint256 remainingBalance = billToken.balanceOf(address(bloomPool));
+        bloomPool.swapOut(0, remainingBalance);
+
+        assertEq(bloomPool.isTbyRedeemable(0), true);
+
+        IBloomPool.TbyCollateral memory collateral = bloomPool.tbyCollateral(0);
+
+        uint256 tbyTotalSupply = tby.totalSupply(0);
+        uint256 tbyRate = bloomPool.getRate(0);
+        uint256 expectedLenderReturns = tbyTotalSupply.mulWad(tbyRate);
+        uint256 expectedBorrowerReturns = collateral.assetAmount - expectedLenderReturns;
+
+        assertEq(collateral.rwaAmount, 0);
+
+        assertApproxEqRelDecimal(bloomPool.lenderReturns(0), expectedLenderReturns, 0.0001e18, 6);
+        assertApproxEqRelDecimal(bloomPool.borrowerReturns(0), expectedBorrowerReturns, 0.0001e18, 6);
+
+        // Complete the swaps
+        vm.startPrank(alice);
+        bloomPool.redeemLender(0, tby.balanceOf(alice, 0));
+        vm.stopPrank();
+
+        vm.startPrank(borrower);
+        bloomPool.redeemBorrower(0);
+        vm.stopPrank();
+
+        assertApproxEqRelDecimal(stable.balanceOf(alice), amount * tbyRate / 1e18, 0.0001e18, 6);
     }
 }
