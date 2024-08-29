@@ -10,31 +10,27 @@
 pragma solidity ^0.8.26;
 
 import {Test} from "forge-std/Test.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 
-contract LTbyFuzzTest is BloomTestSetup {
+contract FactoryUnitTest is BloomTestSetup {
     function setUp() public override {
         super.setUp();
     }
 
-    function testMint(uint256 amount) public {
-        vm.startPrank(address(bloomPool));
-        ltby.mint(0, alice, amount);
-
-        assertEq(ltby.balanceOf(alice, 0), amount);
-        assertEq(ltby.totalSupply(0), amount);
+    function test_FactoryCheck() public view {
+        assertEq(bloomFactory.isFromFactory(address(bloomPool)), true);
+        assertEq(bloomFactory.isFromFactory(owner), false);
     }
 
-    function testBurn(uint256 startAmount, uint256 burnAmount) public {
-        vm.assume(startAmount >= burnAmount);
-        vm.startPrank(address(bloomPool));
+    function test_FactoryOwner() public view {
+        assertEq(bloomFactory.owner(), owner);
+    }
 
-        ltby.mint(0, alice, startAmount);
-        ltby.burn(0, alice, burnAmount);
-
-        uint256 expected = startAmount - burnAmount;
-        assertEq(ltby.balanceOf(alice, 0), expected);
-        assertEq(ltby.totalSupply(0), expected);
+    function test_CreateBloomPoolRevert() public {
+        /// Expect revert if not owner calls
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        bloomFactory.createBloomPool(address(stable), address(billToken), address(priceFeed), 1e18, 200);
     }
 }

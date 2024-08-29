@@ -19,10 +19,13 @@ interface IPoolStorage {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Emitted when a borrower is KYCed.
-    event BorrowerKYCed(address indexed account);
+    event BorrowerKyced(address indexed account, bool isKyced);
 
     /// @notice Emitted when a market maker is KYCed.
-    event MarketMakerKYCed(address indexed account);
+    event MarketMakerKyced(address indexed account, bool isKyced);
+
+    /// @notice Emitted when the spread is updated.
+    event SpreadSet(uint256 spread);
 
     /**
      * @notice Emitted when the borrowers leverage amount is updated
@@ -34,8 +37,8 @@ interface IPoolStorage {
                               Functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Returns the address of the lTby token.
-    function lTby() external view returns (address);
+    /// @notice Returns the address of the tby token.
+    function tby() external view returns (address);
 
     /// @notice Returns the address of the underlying asset of the pool.
     function asset() external view returns (address);
@@ -62,4 +65,7 @@ interface IPoolStorage {
      * @return bool True if the user is a valid market maker.
      */
     function isKYCedMarketMaker(address account) external view returns (bool);
+
+    /// @notice Returns the spread between the TBY rate and the RWA rate.
+    function spread() external view returns (uint256);
 }

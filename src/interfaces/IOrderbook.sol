@@ -66,14 +66,14 @@ interface IOrderbook {
     //////////////////////////////////////////////////////////////*/
     /**
      * @notice Struct to store the details of a lend order that has been matched.
+     * @param lCollateral The amount of underlying assets the lender used as collateral.
+     * @param bCollateral The amount of underlying assets the borrower used as collateral.
      * @param borrower The address of the borrower who filled the order.
-     * @param leverage The leverage amount for the borrower at the time the order was matched.
-     * @param amount The amount of underlying assets filled in the order.
      */
     struct MatchOrder {
+        uint128 lCollateral;
+        uint128 bCollateral;
         address borrower;
-        uint256 leverage;
-        uint256 amount;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -93,18 +93,22 @@ interface IOrderbook {
      * @dev Borrowers can only fill orders if they have passed KYC verification.
      * @param account Address of the lend order to fill.
      * @param amount The maximum amount of underlying assets to fill orders with.
-     * @return filled The total amount of underlying assets filled.
+     * @return filledAmount The total amount of underlying assets filled.
+     * @return borrowAmount The total amount of underlying assets borrower posted as collateral.
      */
-    function fillOrder(address account, uint256 amount) external returns (uint256 filled);
+    function fillOrder(address account, uint256 amount) external returns (uint256 filledAmount, uint256 borrowAmount);
 
     /**
      * @notice Allows borrowers to fill lend orders with a specified amount of underlying assets.
      * @dev Borrowers can only fill orders if they have passed KYC verification.
      * @param accounts An array of order addresses to fill.
      * @param amount The maximum amount of underlying assets to fill orders with.
-     * @return filled The total amount of underlying assets filled.
+     * @return filledAmount The total amount of underlying assets filled.
+     * @return borrowAmount The total amount of underlying assets borrower posted as collateral.
      */
-    function fillOrders(address[] calldata accounts, uint256 amount) external returns (uint256 filled);
+    function fillOrders(address[] calldata accounts, uint256 amount)
+        external
+        returns (uint256 filledAmount, uint256 borrowAmount);
 
     /**
      * @notice Allows users to cancel their open lend order and withdraw their underlying assets.

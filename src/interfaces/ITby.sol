@@ -10,10 +10,10 @@
 pragma solidity ^0.8.26;
 
 /**
- * @title ILTBY
- * @notice Interface for the Lender Term Bound Yield Token
+ * @title ITby
+ * @notice Interface for the Lender's Term Bound Yield Token
  */
-interface ILTBY {
+interface ITby {
     /**
      * @notice Returns the address of the BloomPool contract.
      * @return The address of the BloomPool contract.
