@@ -104,6 +104,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         uint256 totalAmounts = amounts[0] + borrowAmount0 + amounts[1] + borrowAmount1 + amounts[2] + borrowAmount2;
 
         vm.assume(totalAmounts >= swapAmount);
+        vm.assume(swapAmount > 0);
 
         (, int256 answer,,,) = priceFeed.latestRoundData();
         uint256 answerScaled = uint256(answer) * (10 ** (18 - priceFeed.decimals()));
@@ -224,7 +225,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         stable.approve(address(bloomPool), amountNeeeded);
 
         vm.expectEmit(true, true, false, true);
-        emit IBloomPool.MarketMakerSwappedOut(0, marketMaker, rwaBalance);
+        emit IBloomPool.MarketMakerSwappedOut(0, marketMaker, rwaBalance, amountNeeeded);
         uint256 assetAmount = bloomPool.swapOut(0, rwaBalance);
 
         // Validate Token Balances
@@ -288,7 +289,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         stable.approve(address(bloomPool), amountNeeeded);
 
         vm.expectEmit(true, true, false, true);
-        emit IBloomPool.MarketMakerSwappedOut(0, marketMaker, rwaBalance);
+        emit IBloomPool.MarketMakerSwappedOut(0, marketMaker, rwaBalance, amountNeeeded);
         bloomPool.swapOut(0, rwaBalance);
 
         vm.startPrank(alice);

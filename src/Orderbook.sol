@@ -64,8 +64,8 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         _openDepth += amount;
         _userOpenOrder[msg.sender] += amount;
 
-        IERC20(_asset).safeTransferFrom(msg.sender, address(this), amount);
         emit OrderCreated(msg.sender, amount);
+        IERC20(_asset).safeTransferFrom(msg.sender, address(this), amount);
     }
 
     /// @inheritdoc IOrderbook
@@ -104,8 +104,8 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         _userOpenOrder[msg.sender] -= amount;
         _openDepth -= amount;
 
-        IERC20(_asset).safeTransfer(msg.sender, amount);
         emit OrderKilled(msg.sender, amount);
+        IERC20(_asset).safeTransfer(msg.sender, amount);
     }
 
     /// @inheritdoc IOrderbook
@@ -114,9 +114,8 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         // if the order is already matched we have to account for the borrower's who filled the order.
         // If you kill a match order and there are multiple borrowers, the order will be closed in a LIFO manner.
         totalRemoved = _closeMatchOrders(msg.sender, amount);
-        IERC20(_asset).safeTransfer(msg.sender, totalRemoved);
-
         emit OrderKilled(msg.sender, totalRemoved);
+        IERC20(_asset).safeTransfer(msg.sender, totalRemoved);
     }
 
     /// @inheritdoc IOrderbook
@@ -133,10 +132,13 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         }
 
         _idleCapital[account] -= amount;
-        IERC20(_asset).safeTransfer(account, amount);
-
         emit IdleCapitalWithdrawn(account, amount);
+        IERC20(_asset).safeTransfer(account, amount);
     }
+
+    /*///////////////////////////////////////////////////////////////
+                            Internal Functions    
+    //////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Fills an order with a specified amount of underlying assets
@@ -227,6 +229,10 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     function _amountZeroCheck(uint256 amount) internal pure {
         require(amount > 0, Errors.ZeroAmount());
     }
+
+    /*///////////////////////////////////////////////////////////////
+                            View Functions    
+    //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IOrderbook
     function leverage() external view override returns (uint256) {

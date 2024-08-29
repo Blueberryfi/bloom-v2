@@ -60,7 +60,7 @@ interface IBloomPool is IOrderbook, IPoolStorage {
      * @param id The unique identifier of the TBY.
      * @param account The address of the user who swapped in.
      * @param rwaAmountIn Amount of rwa tokens swapped in.
-     * @param assetAmountOut Amount of assets received.
+     * @param assetAmountOut Amount of assets swapped out.
      */
     event MarketMakerSwappedIn(
         uint256 indexed id, address indexed account, uint256 rwaAmountIn, uint256 assetAmountOut
@@ -70,9 +70,12 @@ interface IBloomPool is IOrderbook, IPoolStorage {
      * @notice Emitted when the market maker swaps out rwa tokens for assets.
      * @param id The unique identifier of the TBY.
      * @param account The address of the user who swapped out.
-     * @param amount Amount of rwa tokens swapped out.
+     * @param rwaAmountOut Amount of rwa tokens swapped out.
+     * @param assetAmountIn Amount of assets swapped in.
      */
-    event MarketMakerSwappedOut(uint256 indexed id, address indexed account, uint256 amount);
+    event MarketMakerSwappedOut(
+        uint256 indexed id, address indexed account, uint256 rwaAmountOut, uint256 assetAmountIn
+    );
 
     /**
      * @notice Emitted when a Lender redeems their share of rewards from a TBY.

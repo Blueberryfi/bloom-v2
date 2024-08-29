@@ -100,6 +100,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     /// @inheritdoc IBloomPool
     function redeemLender(uint256 id, uint256 amount) external override isRedeemable(id) returns (uint256 reward) {
         require(_tby.balanceOf(msg.sender, id) >= amount, Errors.InsufficientBalance());
+
         uint256 totalSupply = _tby.totalSupply(id);
         reward = (_tbyLenderReturns[id] * amount) / totalSupply;
         require(reward > 0, Errors.ZeroRewards());
@@ -134,7 +135,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
      * @dev From the first swap for a given TBY id, the market maker has 48 hours to fill orders that
      *      will be included in the batch. All TBYs will mature after 180 days.
      * @param accounts An Array of addresses to convert from matched orders to live TBYs.
-     * @param assetAmount The amount of assets that will be swapped in for rwa tokens.
+     * @param assetAmount The amount of assets that will be swapped out for rwa tokens.
      * @return id The id of the TBY that was minted.
      * @return amountSwapped The amount of assets swapped in.
      */
@@ -148,6 +149,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         id = _lastMintedId;
         TbyMaturity memory maturity = _idToMaturity[id];
 
+        // If the timestamp of the last minted TBYs start is greater than 48 hours from now, this swap is for a new TBY Id.
         if (block.timestamp > maturity.start + 48 hours) {
             // Last minted id is set to type(uint256).max, so we need to wrap around to 0 to start the first TBY.
             unchecked {
@@ -174,10 +176,15 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         uint256 currentPrice = _rwaPrice();
 
         uint256 rwaAmount = (amountSwapped * (10 ** (18 - _assetDecimals))).divWadUp(currentPrice);
+        require(rwaAmount > 0, Errors.ZeroAmount());
 
         if (rwaPrice.startPrice == 0) {
             rwaPrice.startPrice = uint128(currentPrice);
         } else if (rwaPrice.startPrice != currentPrice) {
+            // In the event that the market maker is doing multiple swaps for the same TBY Id,
+            //     and the rwa price has changes, we need to recalculate the starting price of the TBY,
+            //     to ensure accuracy in the TBY's rate of return. To do this we will normalize the price
+            //     by taking the weighted average of the startPrice and the currentPrice.
             uint256 totalValue =
                 uint256(collateral.rwaAmount).mulWad(rwaPrice.startPrice) + rwaAmount.mulWad(currentPrice);
             uint256 totalCollateral = collateral.rwaAmount + rwaAmount;
@@ -187,10 +194,10 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
         collateral.rwaAmount += uint128(rwaAmount);
 
+        emit MarketMakerSwappedIn(id, msg.sender, rwaAmount, amountSwapped);
+
         IERC20(_rwa).safeTransferFrom(msg.sender, address(this), rwaAmount);
         IERC20(_asset).safeTransfer(msg.sender, amountSwapped);
-
-        emit MarketMakerSwappedIn(id, msg.sender, rwaAmount, amountSwapped);
     }
 
     /**
@@ -222,6 +229,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
         uint256 tbyTotalSupply = _tby.totalSupply(id);
         uint256 tbyAmount = percentSwapped != Math.WAD ? tbyTotalSupply.mulWadUp(percentSwapped) : tbyTotalSupply;
+        require(tbyAmount > 0, Errors.ZeroAmount());
 
         assetAmount = uint256(currentPrice).mulWad(rwaAmount) / (10 ** (_rwaDecimals - _assetDecimals));
 
@@ -251,10 +259,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         if (collateral.rwaAmount == 0) {
             _isTbyRedeemable[id] = true;
         }
+
+        emit MarketMakerSwappedOut(id, msg.sender, rwaAmount, assetAmount);
+
         IERC20(_asset).safeTransferFrom(msg.sender, address(this), assetAmount);
         IERC20(_rwa).safeTransfer(msg.sender, rwaAmount);
-
-        emit MarketMakerSwappedOut(id, msg.sender, rwaAmount);
     }
 
     /**
@@ -266,71 +275,9 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         _setPriceFeed(rwaPriceFeed_);
     }
 
-    /// @inheritdoc IBloomPool
-    function getRate(uint256 id) public view override returns (uint256) {
-        TbyMaturity memory maturity = _idToMaturity[id];
-        RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
-
-        if (rwaPrice.startPrice == 0) {
-            revert Errors.InvalidTby();
-        }
-
-        uint256 time = block.timestamp;
-        // If the TBY has not started accruing interest, return 1e18.
-        if (time <= maturity.start) {
-            return Math.WAD;
-        }
-
-        // If the TBY has matured, and is eligible for redemption, calculate price based on the end price.
-        if (time >= maturity.end && rwaPrice.endPrice != 0) {
-            return ((rwaPrice.endPrice * _spread) / rwaPrice.startPrice);
-        }
-
-        // If the TBY has matured, and is not-eligible for redemption due to market maker delay,
-        //     calculate price based on the current price of the RWA token via the price feed.
-        return ((_rwaPrice() * _spread) / rwaPrice.startPrice);
-    }
-
-    function lastMintedId() external view returns (uint256) {
-        return _lastMintedId;
-    }
-
-    /// @inheritdoc IBloomPool
-    function rwaPriceFeed() external view returns (address) {
-        return _rwaPriceFeed;
-    }
-
-    function tbyCollateral(uint256 id) external view returns (TbyCollateral memory) {
-        return _idToCollateral[id];
-    }
-
-    function tbyMaturity(uint256 id) external view returns (TbyMaturity memory) {
-        return _idToMaturity[id];
-    }
-
-    function tbyRwaPricing(uint256 id) external view returns (RwaPrice memory) {
-        return _tbyIdToRwaPrice[id];
-    }
-
-    function borrowerAmount(address account, uint256 id) external view returns (uint256) {
-        return _borrowerAmounts[account][id];
-    }
-
-    function totalBorrowed(uint256 id) external view returns (uint256) {
-        return _idToTotalBorrowed[id];
-    }
-
-    function lenderReturns(uint256 id) external view returns (uint256) {
-        return _tbyLenderReturns[id];
-    }
-
-    function borrowerReturns(uint256 id) external view returns (uint256) {
-        return _tbyBorrowerReturns[id];
-    }
-
-    function isTbyRedeemable(uint256 id) external view returns (bool) {
-        return _isTbyRedeemable[id];
-    }
+    /*///////////////////////////////////////////////////////////////
+                            Internal Functions    
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice Returns the current price of the RWA token.
     function _rwaPrice() private view returns (uint256) {
@@ -412,5 +359,75 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
         lenderFunds = (remainingAmount * lCollateral) / totalCollateral;
         borrowerFunds = remainingAmount - lenderFunds;
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                            View Functions    
+    //////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc IBloomPool
+    function getRate(uint256 id) public view override returns (uint256) {
+        TbyMaturity memory maturity = _idToMaturity[id];
+        RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
+
+        if (rwaPrice.startPrice == 0) {
+            revert Errors.InvalidTby();
+        }
+
+        uint256 time = block.timestamp;
+        // If the TBY has not started accruing interest, return 1e18.
+        if (time <= maturity.start) {
+            return Math.WAD;
+        }
+
+        // If the TBY has matured, and is eligible for redemption, calculate price based on the end price.
+        if (time >= maturity.end && rwaPrice.endPrice != 0) {
+            return ((rwaPrice.endPrice * _spread) / rwaPrice.startPrice);
+        }
+
+        // If the TBY has matured, and is not-eligible for redemption due to market maker delay,
+        //     calculate price based on the current price of the RWA token via the price feed.
+        return ((_rwaPrice() * _spread) / rwaPrice.startPrice);
+    }
+
+    function lastMintedId() external view returns (uint256) {
+        return _lastMintedId;
+    }
+
+    /// @inheritdoc IBloomPool
+    function rwaPriceFeed() external view returns (address) {
+        return _rwaPriceFeed;
+    }
+
+    function tbyCollateral(uint256 id) external view returns (TbyCollateral memory) {
+        return _idToCollateral[id];
+    }
+
+    function tbyMaturity(uint256 id) external view returns (TbyMaturity memory) {
+        return _idToMaturity[id];
+    }
+
+    function tbyRwaPricing(uint256 id) external view returns (RwaPrice memory) {
+        return _tbyIdToRwaPrice[id];
+    }
+
+    function borrowerAmount(address account, uint256 id) external view returns (uint256) {
+        return _borrowerAmounts[account][id];
+    }
+
+    function totalBorrowed(uint256 id) external view returns (uint256) {
+        return _idToTotalBorrowed[id];
+    }
+
+    function lenderReturns(uint256 id) external view returns (uint256) {
+        return _tbyLenderReturns[id];
+    }
+
+    function borrowerReturns(uint256 id) external view returns (uint256) {
+        return _tbyBorrowerReturns[id];
+    }
+
+    function isTbyRedeemable(uint256 id) external view returns (bool) {
+        return _isTbyRedeemable[id];
     }
 }
