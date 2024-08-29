@@ -175,7 +175,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         TbyCollateral storage collateral = _idToCollateral[id];
         uint256 currentPrice = _rwaPrice();
 
-        uint256 rwaAmount = (amountSwapped * (10 ** (18 - _assetDecimals))).divWadUp(currentPrice);
+        uint256 rwaAmount = (amountSwapped * _assetScalingFactor).divWadUp(currentPrice) / _rwaScalingFactor;
         require(rwaAmount > 0, Errors.ZeroAmount());
 
         if (rwaPrice.startPrice == 0) {
@@ -185,8 +185,8 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             //     and the rwa price has changes, we need to recalculate the starting price of the TBY,
             //     to ensure accuracy in the TBY's rate of return. To do this we will normalize the price
             //     by taking the weighted average of the startPrice and the currentPrice.
-            uint256 totalValue =
-                uint256(collateral.rwaAmount).mulWad(rwaPrice.startPrice) + rwaAmount.mulWad(currentPrice);
+            uint256 totalValue = uint256(collateral.rwaAmount).mulWad(rwaPrice.startPrice)
+                + rwaAmount.mulWad(currentPrice) / _rwaScalingFactor;
             uint256 totalCollateral = collateral.rwaAmount + rwaAmount;
             uint256 normalizedPrice = totalValue.divWad(totalCollateral);
             rwaPrice.startPrice = uint128(normalizedPrice);
@@ -231,7 +231,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         uint256 tbyAmount = percentSwapped != Math.WAD ? tbyTotalSupply.mulWadUp(percentSwapped) : tbyTotalSupply;
         require(tbyAmount > 0, Errors.ZeroAmount());
 
-        assetAmount = uint256(currentPrice).mulWad(rwaAmount) / (10 ** (_rwaDecimals - _assetDecimals));
+        assetAmount = uint256(currentPrice).mulWad(rwaAmount) / (10 ** ((18 - _rwaDecimals) + (18 - _assetDecimals)));
 
         uint256 lenderReturn = getRate(id).mulWad(tbyAmount);
         // If the price has dropped between the end of the TBY's maturity date and when the market maker swap finishes,

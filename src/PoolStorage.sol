@@ -53,6 +53,12 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
     /// @notice Mapping of KYCed market makers.
     mapping(address => bool) internal _marketMakers;
 
+    /// @notice Scaling factor for the underlying asset.
+    uint256 internal immutable _assetScalingFactor;
+
+    /// @notice Scaling factor for the RWA token.
+    uint256 internal immutable _rwaScalingFactor;
+
     /*///////////////////////////////////////////////////////////////
                             Modifiers    
     //////////////////////////////////////////////////////////////*/
@@ -82,6 +88,9 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
 
         _assetDecimals = decimals;
         _rwaDecimals = IERC20Metadata(rwa_).decimals();
+
+        _assetScalingFactor = 10 ** (18 - _assetDecimals);
+        _rwaScalingFactor = 10 ** (18 - _rwaDecimals);
 
         _setLeverage(initLeverage);
         _setSpread(initSpread);
