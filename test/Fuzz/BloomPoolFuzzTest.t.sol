@@ -215,7 +215,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
 
         // Fast forward to just before the TBY matures & update price feed
         skip(180 days);
-        priceFeed.setLatestRoundData(2, 112e8, block.timestamp, block.timestamp, 0);
+        priceFeed.setLatestRoundData(2, 112e8, block.timestamp, block.timestamp, 2);
 
         uint256 amountNeeeded = (totalCapital * 112e18) / 110e18;
         uint256 rwaBalance = billToken.balanceOf(address(bloomPool));
@@ -279,7 +279,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
 
         // Fast forward to just before the TBY matures & update price feed
         skip(180 days);
-        priceFeed.setLatestRoundData(2, 112e8, block.timestamp, block.timestamp, 0);
+        priceFeed.setLatestRoundData(2, 112e8, block.timestamp, block.timestamp, 2);
 
         uint256 amountNeeeded = (stableBalance * 112e18) / 110e18;
         uint256 rwaBalance = billToken.balanceOf(address(bloomPool));
@@ -334,7 +334,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
 
         // Fast forward to the maturity of the TBY and increase the price.
         skip(180 days);
-        priceFeed.setLatestRoundData(2, 112e8, block.timestamp, block.timestamp, 0);
+        priceFeed.setLatestRoundData(2, 112e8, block.timestamp, block.timestamp, 2);
 
         uint256 amountNeeeded = (stableBalance * 112e18) / 110e18;
         uint256 rwaBalance = billToken.balanceOf(address(bloomPool));
@@ -352,7 +352,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         // Fast forward to after the TBY has matured but before all of the RWA has been swapped out.
         // Have a dramatic price drop
         skip(1 days);
-        priceFeed.setLatestRoundData(2, 50e8, block.timestamp, block.timestamp, 0);
+        priceFeed.setLatestRoundData(2, 50e8, block.timestamp, block.timestamp, 2);
         uint256 remainingBalance = billToken.balanceOf(address(bloomPool));
         bloomPool.swapOut(0, remainingBalance);
 
@@ -405,7 +405,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
 
         // Fast forward 1 day, increase the price feed by .1e8 and wap the remaining stable balance
         skip(1 days);
-        priceFeed.setLatestRoundData(2, 110.8e8, block.timestamp, block.timestamp, 0);
+        priceFeed.setLatestRoundData(2, 110.8e8, block.timestamp, block.timestamp, 2);
         (uint256 id2, uint256 assetAmount2) = _swapIn(stableBalance - assetAmount);
         uint256 rwaBalance2 = billToken.balanceOf(address(bloomPool));
 

@@ -109,8 +109,8 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         _tbyLenderReturns[id] -= reward;
         _tby.burn(id, msg.sender, amount);
 
-        IERC20(_asset).safeTransfer(msg.sender, reward);
         emit LenderRedeemed(msg.sender, id, reward);
+        IERC20(_asset).safeTransfer(msg.sender, reward);
     }
 
     /// @inheritdoc IBloomPool
@@ -125,8 +125,8 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         _tbyBorrowerReturns[id] -= reward;
         _borrowerAmounts[msg.sender][id] -= borrowAmount;
 
-        IERC20(_asset).safeTransfer(msg.sender, reward);
         emit BorrowerRedeemed(msg.sender, id, reward);
+        IERC20(_asset).safeTransfer(msg.sender, reward);
     }
 
     /**
@@ -281,8 +281,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
     /// @notice Returns the current price of the RWA token.
     function _rwaPrice() private view returns (uint256) {
-        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(_rwaPriceFeed).latestRoundData();
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
+            AggregatorV3Interface(_rwaPriceFeed).latestRoundData();
         require(updatedAt >= block.timestamp - 1 days, Errors.OutOfDate());
+        require(answeredInRound >= roundId, Errors.OutOfDate());
+
         uint256 scaler = 10 ** (18 - _rwaPriceFeedDecimals);
         return uint256(answer) * scaler;
     }
@@ -337,9 +340,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
     /// @notice Logic to set the price feed for the RWA token.
     function _setPriceFeed(address rwaPriceFeed_) internal {
-        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(rwaPriceFeed_).latestRoundData();
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
+            AggregatorV3Interface(rwaPriceFeed_).latestRoundData();
         require(answer > 0, Errors.InvalidPriceFeed());
         require(updatedAt >= block.timestamp - 1 days, Errors.OutOfDate());
+        require(answeredInRound >= roundId, Errors.OutOfDate());
 
         _rwaPriceFeed = rwaPriceFeed_;
         _rwaPriceFeedDecimals = AggregatorV3Interface(rwaPriceFeed_).decimals();
