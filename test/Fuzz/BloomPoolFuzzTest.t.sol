@@ -380,4 +380,44 @@ contract BloomPoolFuzzTest is BloomTestSetup {
 
         assertApproxEqRelDecimal(stable.balanceOf(alice), amount * tbyRate / 1e18, 0.0001e18, 6);
     }
+
+    function testFuzz_SwapInMultidayOrder(uint256 amount) public {
+        amount = bound(amount, 1e6, 100_000_000_000e6);
+        _createLendOrder(alice, amount);
+        _fillOrder(alice, amount);
+        lenders.push(alice);
+
+        // Swap in 1/4 of the stable balance
+        uint256 stableBalance = stable.balanceOf(address(bloomPool));
+        (uint256 id, uint256 assetAmount) = _swapIn(stableBalance / 4);
+
+        uint256 rwaBalance = billToken.balanceOf(address(bloomPool));
+
+        assertEq(bloomPool.tbyCollateral(id).assetAmount, 0);
+        assertEq(bloomPool.tbyCollateral(id).rwaAmount, rwaBalance);
+
+        assertEq(bloomPool.tbyRwaPricing(id).startPrice, 110e18);
+        assertEq(bloomPool.tbyRwaPricing(id).endPrice, 0);
+
+        assertEq(bloomPool.tbyMaturity(id).start, block.timestamp);
+        assertEq(bloomPool.tbyMaturity(id).end, block.timestamp + 180 days);
+
+        // Fast forward 1 day, increase the price feed by .1e8 and wap the remaining stable balance
+        skip(1 days);
+        priceFeed.setLatestRoundData(2, 110.8e8, block.timestamp, block.timestamp, 0);
+        (uint256 id2, uint256 assetAmount2) = _swapIn(stableBalance - assetAmount);
+        uint256 rwaBalance2 = billToken.balanceOf(address(bloomPool));
+
+        assertEq(id2, id);
+        assertEq(assetAmount2, stableBalance - assetAmount);
+
+        assertEq(bloomPool.tbyCollateral(id).assetAmount, 0);
+        assertEq(bloomPool.tbyCollateral(id).rwaAmount, rwaBalance2);
+
+        uint256 totalValue = rwaBalance.mulWad(110e18) + (rwaBalance2 - rwaBalance).mulWad(110.8e18);
+        uint256 normalizedPrice = totalValue.divWad(rwaBalance2);
+
+        assertEq(bloomPool.tbyRwaPricing(id).startPrice, normalizedPrice);
+        assertEq(bloomPool.tbyRwaPricing(id).endPrice, 0);
+    }
 }

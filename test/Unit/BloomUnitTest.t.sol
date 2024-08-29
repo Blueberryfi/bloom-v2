@@ -169,4 +169,46 @@ contract BloomUnitTest is BloomTestSetup {
         assertEq(endCollateral.assetAmount, totalStableCollateral);
         assertEq(bloomPool.isTbyRedeemable(0), true);
     }
+
+    function testTokenIdIncrement() public {
+        vm.startPrank(owner);
+        bloomPool.whitelistMarketMaker(marketMaker, true);
+        bloomPool.whitelistBorrower(borrower, true);
+
+        _createLendOrder(alice, 110e6);
+        uint256 borrowAmount = _fillOrder(alice, 110e6);
+        lenders.push(alice);
+
+        uint256 totalStableCollateral = 110e6 + borrowAmount;
+        uint256 swapClip = totalStableCollateral / 4;
+
+        // First 2 clips should mint the same token id
+        _swapIn(swapClip);
+        assertEq(bloomPool.lastMintedId(), 0);
+
+        skip(1 days);
+        priceFeed.setLatestRoundData(2, 110e8, block.timestamp, block.timestamp, 0);
+
+        _swapIn(swapClip);
+        assertEq(bloomPool.lastMintedId(), 0);
+
+        // Next clip should mint a new token id
+        skip(1 days + 30 minutes);
+        priceFeed.setLatestRoundData(3, 110e8, block.timestamp, block.timestamp, 0);
+
+        _swapIn(swapClip);
+        assertEq(bloomPool.lastMintedId(), 1);
+
+        // Final clip should mint a new token id
+        skip(3 days);
+        priceFeed.setLatestRoundData(4, 110e8, block.timestamp, block.timestamp, 0);
+
+        _swapIn(swapClip);
+        assertEq(bloomPool.lastMintedId(), 2);
+
+        // Check that 3 different ids are minted
+        assertGt(tby.balanceOf(alice, 0), 0);
+        assertGt(tby.balanceOf(alice, 1), 0);
+        assertGt(tby.balanceOf(alice, 2), 0);
+    }
 }

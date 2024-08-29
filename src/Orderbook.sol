@@ -164,7 +164,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /**
-     * @notice Deposits the leveraged matched amount of underlying assets to the borrower
+     * @notice Deposits the leveraged matched amount of underlying assets from the borrower
      * @dev If the borrower has idle capital, it will be used to match the order first before depositing
      * @param amount Amount of underlying assets matched by the borrower
      */

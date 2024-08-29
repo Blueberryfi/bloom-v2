@@ -35,7 +35,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice The last TBY id that was minted.
-    uint256 private _nextTbyId;
+    uint256 private _lastMintedId;
 
     /// @notice Price feed for the RWA token.
     address private _rwaPriceFeed;
@@ -90,6 +90,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     ) Orderbook(asset_, rwa_, initLeverage, spread, owner_) {
         require(owner_ != address(0), Errors.ZeroAddress());
         _setPriceFeed(rwaPriceFeed_);
+        _lastMintedId = type(uint256).max;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -144,11 +145,15 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         returns (uint256 id, uint256 amountSwapped)
     {
         // Get the TBY id to mint
-        id = _nextTbyId;
+        id = _lastMintedId;
         TbyMaturity memory maturity = _idToMaturity[id];
 
         if (block.timestamp > maturity.start + 48 hours) {
-            id = _nextTbyId++;
+            // Last minted id is set to type(uint256).max, so we need to wrap around to 0 to start the first TBY.
+            unchecked {
+                id = ++_lastMintedId;
+            }
+
             uint128 start = uint128(block.timestamp);
             uint128 end = start + 180 days;
             _idToMaturity[id] = TbyMaturity(start, end);
@@ -164,15 +169,23 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         }
 
         // Initialize the starting price of the RWA token if it has not been set
-        RwaPrice memory rwaPrice = _tbyIdToRwaPrice[id];
+        RwaPrice storage rwaPrice = _tbyIdToRwaPrice[id];
+        TbyCollateral storage collateral = _idToCollateral[id];
         uint256 currentPrice = _rwaPrice();
 
+        uint256 rwaAmount = (amountSwapped * (10 ** (18 - _assetDecimals))).divWadUp(currentPrice);
+
         if (rwaPrice.startPrice == 0) {
-            _tbyIdToRwaPrice[id].startPrice = uint128(currentPrice);
+            rwaPrice.startPrice = uint128(currentPrice);
+        } else if (rwaPrice.startPrice != currentPrice) {
+            uint256 totalValue =
+                uint256(collateral.rwaAmount).mulWad(rwaPrice.startPrice) + rwaAmount.mulWad(currentPrice);
+            uint256 totalCollateral = collateral.rwaAmount + rwaAmount;
+            uint256 normalizedPrice = totalValue.divWad(totalCollateral);
+            rwaPrice.startPrice = uint128(normalizedPrice);
         }
 
-        uint256 rwaAmount = (amountSwapped * (10 ** (18 - _assetDecimals))).divWadUp(currentPrice);
-        _idToCollateral[id] = TbyCollateral(0, uint128(rwaAmount));
+        collateral.rwaAmount += uint128(rwaAmount);
 
         IERC20(_rwa).safeTransferFrom(msg.sender, address(this), rwaAmount);
         IERC20(_asset).safeTransfer(msg.sender, amountSwapped);
@@ -279,7 +292,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     }
 
     function lastMintedId() external view returns (uint256) {
-        return _nextTbyId - 1;
+        return _lastMintedId;
     }
 
     /// @inheritdoc IBloomPool

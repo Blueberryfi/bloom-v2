@@ -41,7 +41,7 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
     /// @notice Decimals of the RWA token of the Pool.
     uint8 internal immutable _rwaDecimals;
 
-    /// @notice Leverage value for the borrower. scaled by 1e18 (50x leverage == 2% == 0.02e18)
+    /// @notice Leverage value for the borrower. scaled by 1e18 (20x leverage == 20e18)
     uint256 internal _leverage;
 
     /// @notice The spread between the rate of the TBY and the rate of the RWA token.
