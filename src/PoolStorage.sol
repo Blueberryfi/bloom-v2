@@ -7,7 +7,7 @@
 ██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
 ╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
 */
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
