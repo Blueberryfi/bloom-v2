@@ -15,3 +15,11 @@ runs = 10000
 
 gas_reports = ["*"]
 gas_reports_ignore = ["MockERC20", "BloomTestSetup"]
+
+[rpc_endpoints]
+arbitrum = "${ARB_RPC_URL}"
+arb_sepolia = "${ARB_SEPOLIA_RPC_URL}"
+
+[etherscan]
+arbitrum = { key = "${ARBITRUM_API_KEY}" }
+arb_sepolia = { key = "${ARBITRUM_API_KEY}" }

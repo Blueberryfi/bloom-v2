@@ -52,10 +52,10 @@ abstract contract BloomTestSetup is Test {
         // Start at a non-0 block timestamp
         skip(1 weeks);
 
+        vm.startPrank(owner);
         priceFeed = new MockPriceFeed(8);
         priceFeed.setLatestRoundData(1, 110e8, 0, block.timestamp, 1);
 
-        vm.prank(owner);
         bloomPool = bloomFactory.createBloomPool(
             address(stable), address(billToken), address(priceFeed), initialLeverage, initialSpread
         );
@@ -102,5 +102,12 @@ abstract contract BloomTestSetup is Test {
         stable.mint(marketMaker, stableAmount);
         stable.approve(address(bloomPool), stableAmount);
         return bloomPool.swapOut(id, rwaAmount);
+    }
+
+    function _skipAndUpdatePrice(uint256 time, uint256 price, uint80 roundId) internal {
+        vm.startPrank(owner);
+        skip(time);
+        priceFeed.setLatestRoundData(roundId, int256(price), block.timestamp, block.timestamp, roundId);
+        vm.stopPrank();
     }
 }
