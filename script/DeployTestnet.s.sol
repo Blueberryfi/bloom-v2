@@ -13,6 +13,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {MockPriceFeed} from "../test/mocks/MockPriceFeed.sol";
 import {MockERC20} from "../test/mocks/MockERC20.sol";
 import {BloomPool} from "../src/BloomPool.sol";
+import {BloomFactory} from "../src/BloomFactory.sol";
 
 contract DeployScript is Script {
     address public owner = address(0);
@@ -41,13 +42,16 @@ contract DeployScript is Script {
         console.log("BillToken: ", address(billToken));
         require(address(billToken) != address(0), "BillToken is not set");
 
-        BloomPool bloomPool = new BloomPool(
+        BloomFactory bloomFactory = new BloomFactory(owner);    
+        console.log("BloomFactory: ", address(bloomFactory));
+        require(address(bloomFactory) != address(0), "BloomFactory is not set");
+
+        BloomPool bloomPool = bloomFactory.createBloomPool(
             address(stable),
             address(billToken),
             address(priceFeed),
             50e18, // 50x leverage
-            .995e18, // 0.5% spread
-            address(deployer)
+            .995e18 // .5% spread for borrow returns
         );
         console.log("BloomPool: ", address(bloomPool));
 

@@ -11,6 +11,7 @@ pragma solidity 0.8.26;
 
 import {Script, console} from "forge-std/Script.sol";
 import {BloomPool} from "../src/BloomPool.sol";
+import {BloomFactory} from "../src/BloomFactory.sol";
 
 contract DeployScript is Script {
     address public owner = address(0);
@@ -35,13 +36,16 @@ contract DeployScript is Script {
         require(leverage != 0, "Leverage is not set");
         require(spread != 0, "Spread is not set");
 
-        BloomPool bloomPool = new BloomPool(
+        BloomFactory bloomFactory = new BloomFactory(owner);    
+        console.log("BloomFactory: ", address(bloomFactory));
+        require(address(bloomFactory) != address(0), "BloomFactory is not set");
+
+        BloomPool bloomPool = bloomFactory.createBloomPool(
             stable,
             rwa,
             rwaPriceFeed,
             leverage, 
-            spread, 
-            owner
+            spread
         );
         console.log("BloomPool: ", address(bloomPool));
 

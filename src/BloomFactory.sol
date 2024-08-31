@@ -19,6 +19,19 @@ import {BloomPool} from "@bloom-v2/BloomPool.sol";
  */
 contract BloomFactory is Ownable2Step {
     /*///////////////////////////////////////////////////////////////
+                                Events    
+    //////////////////////////////////////////////////////////////*/
+    /**
+     * @notice Emitted when a new BloomPool instance is created
+     * @param pool The address of the new BloomPool instance
+     * @param asset The underlying asset for the pool
+     * @param rwa The RWA token for the pool
+     * @param initLeverage The initial leverage for the borrower
+     * @param spread The spread between the lender and borrower
+     */
+    event BloomPoolCreated(address indexed pool, address indexed asset, address indexed rwa, uint256 initLeverage, uint256 spread);
+
+    /*///////////////////////////////////////////////////////////////
                                 Storage    
     //////////////////////////////////////////////////////////////*/
 
@@ -50,6 +63,7 @@ contract BloomFactory is Ownable2Step {
     {
         pool = new BloomPool(asset_, rwa_, rwaPriceFeed, initLeverage, spread, owner());
         _isFromFactory[address(pool)] = true;
+        emit BloomPoolCreated(address(pool), asset_, rwa_, initLeverage, spread);
     }
 
     /**
