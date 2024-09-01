@@ -14,6 +14,30 @@ pragma solidity 0.8.26;
  * @notice Interface for the Lender's Term Bound Yield Token
  */
 interface ITby {
+    /*///////////////////////////////////////////////////////////////
+                            Events
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Emitted when a user mints Tby.
+     * @param account The address of the account that minted the Tby.
+     * @param id The unique identifier of the Tby.
+     * @param amount The amount of Tby minted.
+     */
+    event Mint(address indexed account, uint256 id, uint256 amount);
+
+    /**
+     * @notice Emitted when a user burns Tby.
+     * @param account The address of the account that burned the Tby.
+     * @param id The unique identifier of the Tby.
+     * @param amount The amount of Tby burned.
+     */
+    event Burn(address indexed account, uint256 id, uint256 amount);
+
+    /*///////////////////////////////////////////////////////////////
+                            Functions
+    //////////////////////////////////////////////////////////////*/
+
     /**
      * @notice Returns the address of the BloomPool contract.
      * @return The address of the BloomPool contract.

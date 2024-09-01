@@ -67,6 +67,7 @@ contract Tby is ITby, ERC1155 {
     function mint(uint256 id, address account, uint256 amount) external onlyBloom {
         _totalSupply[id] += amount;
         _mint(account, id, amount, "");
+        emit Mint(account, id, amount);
     }
 
     /**
@@ -78,6 +79,7 @@ contract Tby is ITby, ERC1155 {
     function burn(uint256 id, address account, uint256 amount) external onlyBloom {
         _totalSupply[id] -= amount;
         _burn(account, 0, amount);
+        emit Burn(account, id, amount);
     }
 
     /// @inheritdoc ITby
