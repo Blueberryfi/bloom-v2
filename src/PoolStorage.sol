@@ -9,8 +9,9 @@
 */
 pragma solidity 0.8.26;
 
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
@@ -29,18 +30,6 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
     /// @notice Addresss of the lTby token
     Tby internal _tby;
 
-    /// @notice Address of the underlying asset of the Pool.
-    address internal immutable _asset;
-
-    /// @notice Decimals of the underlying asset of the Pool.
-    uint8 internal immutable _assetDecimals;
-
-    /// @notice Address of the RWA token of the Pool.
-    address internal immutable _rwa;
-
-    /// @notice Decimals of the RWA token of the Pool.
-    uint8 internal immutable _rwaDecimals;
-
     /// @notice Leverage value for the borrower. scaled by 1e18 (20x leverage == 20e18)
     uint256 internal _leverage;
 
@@ -53,11 +42,33 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
     /// @notice Mapping of KYCed market makers.
     mapping(address => bool) internal _marketMakers;
 
+    /*///////////////////////////////////////////////////////////////
+                        Constants & Immutables
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Address of the underlying asset of the Pool.
+    address internal immutable _asset;
+
+    /// @notice Decimals of the underlying asset of the Pool.
+    uint8 internal immutable _assetDecimals;
+
+    /// @notice Address of the RWA token of the Pool.
+    address internal immutable _rwa;
+
+    /// @notice Decimals of the RWA token of the Pool.
+    uint8 internal immutable _rwaDecimals;
+
     /// @notice Scaling factor for the underlying asset.
     uint256 internal immutable _assetScalingFactor;
 
     /// @notice Scaling factor for the RWA token.
     uint256 internal immutable _rwaScalingFactor;
+
+    /// @notice The maximum leverage allowed for the pool.
+    uint256 constant MAX_LEVERAGE = 100e18;
+
+    /// @notice Maximum spread between the TBY rate and the rate of the RWA's price appreciation.
+    uint256 constant MAX_SPREAD = 0.85e18;
 
     /*///////////////////////////////////////////////////////////////
                             Modifiers    
@@ -181,14 +192,14 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
 
     /// @notice Internal logic to set the leverage.
     function _setLeverage(uint256 leverage) internal {
-        require(leverage >= 1e18 && leverage < 100e18, Errors.InvalidLeverage());
+        require(leverage >= Math.WAD && leverage <= MAX_LEVERAGE, Errors.InvalidLeverage());
         _leverage = leverage;
         emit LeverageSet(leverage);
     }
 
     /// @notice Internal logic to set the spread.
     function _setSpread(uint256 spread_) internal {
-        require(spread_ >= 0.85e18, Errors.InvalidSpread());
+        require(spread_ >= MAX_SPREAD, Errors.InvalidSpread());
         _spread = spread_;
         emit SpreadSet(spread_);
     }

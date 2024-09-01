@@ -9,10 +9,10 @@
 */
 pragma solidity 0.8.26;
 
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@solady/utils/ReentrancyGuard.sol";
-import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
 import {AggregatorV3Interface} from "@chainlink/shared/interfaces/AggregatorV3Interface.sol";
+import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
+import {ReentrancyGuard} from "@solady/utils/ReentrancyGuard.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -66,6 +66,14 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
     /// @notice A mapping of TBY id if the TBY is eligible for redemption.
     mapping(uint256 => bool) private _isTbyRedeemable;
+
+    /*///////////////////////////////////////////////////////////////
+                        Constants & Immutables
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice The buffer time between the first minted token of a given TBY id 
+    ///         and the last possible swap in for that tokenId.
+    uint256 constant SWAP_BUFFER = 48 hours;
 
     /*///////////////////////////////////////////////////////////////
                             Modifiers   
@@ -150,7 +158,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         TbyMaturity memory maturity = _idToMaturity[id];
 
         // If the timestamp of the last minted TBYs start is greater than 48 hours from now, this swap is for a new TBY Id.
-        if (block.timestamp > maturity.start + 48 hours) {
+        if (block.timestamp > maturity.start + SWAP_BUFFER) {
             // Last minted id is set to type(uint256).max, so we need to wrap around to 0 to start the first TBY.
             unchecked {
                 id = ++_lastMintedId;
