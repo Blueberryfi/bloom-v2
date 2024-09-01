@@ -12,7 +12,6 @@ pragma solidity 0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
 
-import {BloomFactory} from "@bloom-v2/BloomFactory.sol";
 import {BloomPool} from "@bloom-v2/BloomPool.sol";
 import {Tby} from "@bloom-v2/token/Tby.sol";
 
@@ -22,7 +21,6 @@ import {MockPriceFeed} from "./mocks/MockPriceFeed.sol";
 abstract contract BloomTestSetup is Test {
     using FpMath for uint256;
 
-    BloomFactory internal bloomFactory;
     BloomPool internal bloomPool;
     Tby internal tby;
     MockERC20 internal stable;
@@ -45,7 +43,6 @@ abstract contract BloomTestSetup is Test {
     uint256[] public filledAmounts;
 
     function setUp() public virtual {
-        bloomFactory = new BloomFactory(owner);
         stable = new MockERC20("Mock USDC", "USDC", 6);
         billToken = new MockERC20("Mock T-Bill Token", "bIb01", 18);
 
@@ -56,8 +53,8 @@ abstract contract BloomTestSetup is Test {
         priceFeed = new MockPriceFeed(8);
         priceFeed.setLatestRoundData(1, 110e8, 0, block.timestamp, 1);
 
-        bloomPool = bloomFactory.createBloomPool(
-            address(stable), address(billToken), address(priceFeed), initialLeverage, initialSpread
+        bloomPool = new BloomPool(
+            address(stable), address(billToken), address(priceFeed), initialLeverage, initialSpread, owner
         );
         vm.stopPrank();
 

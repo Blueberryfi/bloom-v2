@@ -11,7 +11,6 @@ pragma solidity 0.8.26;
 
 import {Script, console} from "forge-std/Script.sol";
 import {BloomPool} from "../src/BloomPool.sol";
-import {BloomFactory} from "../src/BloomFactory.sol";
 
 contract DeployScript is Script {
     address public owner = address(0);
@@ -25,7 +24,7 @@ contract DeployScript is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
         address deployer = vm.addr(deployerPrivateKey);
-        
+
         if (owner == address(0)) {
             owner = deployer;
         }
@@ -36,17 +35,7 @@ contract DeployScript is Script {
         require(leverage != 0, "Leverage is not set");
         require(spread != 0, "Spread is not set");
 
-        BloomFactory bloomFactory = new BloomFactory(owner);    
-        console.log("BloomFactory: ", address(bloomFactory));
-        require(address(bloomFactory) != address(0), "BloomFactory is not set");
-
-        BloomPool bloomPool = bloomFactory.createBloomPool(
-            stable,
-            rwa,
-            rwaPriceFeed,
-            leverage, 
-            spread
-        );
+        BloomPool bloomPool = new BloomPool(stable, rwa, rwaPriceFeed, leverage, spread, owner);
         console.log("BloomPool: ", address(bloomPool));
 
         require(bloomPool.owner() != address(0), "Deployer is not owner");
