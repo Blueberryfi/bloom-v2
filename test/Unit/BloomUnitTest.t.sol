@@ -7,7 +7,7 @@
 ██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
 ╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
 */
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -95,9 +95,8 @@ contract BloomUnitTest is BloomTestSetup {
         assertEq(bloomPool.getRate(0), FpMath.WAD);
 
         // Move time forward & update price feed
-        skip(3 days);
         uint256 newRate = 115e8;
-        priceFeed.setLatestRoundData(1, int256(newRate), 0, block.timestamp, 1);
+        _skipAndUpdatePrice(3 days, newRate, 1);
 
         uint256 expectedRate = 115e18 * initialSpread / 110e18; // 110e18 is the initial rate
         assertEq(bloomPool.getRate(0), expectedRate);
@@ -129,8 +128,7 @@ contract BloomUnitTest is BloomTestSetup {
         _swapIn(1e18);
 
         // Fast forward to just before the TBY matures & update price feed
-        skip(179 days);
-        priceFeed.setLatestRoundData(2, 112e18, block.timestamp, block.timestamp, 2);
+        _skipAndUpdatePrice(179 days, 112e8, 2);
 
         vm.startPrank(marketMaker);
         vm.expectRevert(Errors.TBYNotMatured.selector);
@@ -159,8 +157,7 @@ contract BloomUnitTest is BloomTestSetup {
         assertEq(startCollateral.rwaAmount, expectedRwa);
         assertEq(startCollateral.assetAmount, 0);
 
-        skip(180 days);
-        priceFeed.setLatestRoundData(2, 110e8, block.timestamp, block.timestamp, 2);
+        _skipAndUpdatePrice(180 days, 110e8, 2);
         vm.startPrank(marketMaker);
         stable.approve(address(bloomPool), totalStableCollateral);
         bloomPool.swapOut(0, expectedRwa);
@@ -191,22 +188,19 @@ contract BloomUnitTest is BloomTestSetup {
         _swapIn(swapClip);
         assertEq(bloomPool.lastMintedId(), 0);
 
-        skip(1 days);
-        priceFeed.setLatestRoundData(2, 110e8, block.timestamp, block.timestamp, 2);
+        _skipAndUpdatePrice(1 days, 110e8, 2);
 
         _swapIn(swapClip);
         assertEq(bloomPool.lastMintedId(), 0);
 
         // Next clip should mint a new token id
-        skip(1 days + 30 minutes);
-        priceFeed.setLatestRoundData(3, 110e8, block.timestamp, block.timestamp, 3);
+        _skipAndUpdatePrice(1 days + 30 minutes, 110e8, 3);
 
         _swapIn(swapClip);
         assertEq(bloomPool.lastMintedId(), 1);
 
         // Final clip should mint a new token id
-        skip(3 days);
-        priceFeed.setLatestRoundData(4, 110e8, block.timestamp, block.timestamp, 4);
+        _skipAndUpdatePrice(3 days, 110e8, 4);
 
         _swapIn(swapClip);
         assertEq(bloomPool.lastMintedId(), 2);

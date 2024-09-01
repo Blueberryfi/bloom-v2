@@ -7,9 +7,11 @@
 ██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
 ╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
 */
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
-contract MockPriceFeed {
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
+contract MockPriceFeed is Ownable {
     uint80 private _roundId;
     int256 private _answer;
     uint256 private _startedAt;
@@ -18,7 +20,14 @@ contract MockPriceFeed {
 
     uint8 private _decimals;
 
-    constructor(uint8 d) {
+    address private _keeper;
+
+    modifier authorized() {
+        require(msg.sender == _keeper || msg.sender == owner(), "Not authorized");
+        _;
+    }
+
+    constructor(uint8 d) Ownable(msg.sender) {
         _decimals = d;
     }
 
@@ -28,12 +37,16 @@ contract MockPriceFeed {
         uint256 startedAt,
         uint256 updatedAt,
         uint80 answeredInRound
-    ) external {
+    ) external authorized {
         _roundId = roundId;
         _answer = answer;
         _startedAt = startedAt;
         _updatedAt = updatedAt;
         _answeredInRound = answeredInRound;
+    }
+
+    function setKeeper(address keeper) external onlyOwner {
+        _keeper = keeper;
     }
 
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {

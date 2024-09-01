@@ -19,3 +19,6 @@ docs/
 
 # Testing coverage
 coverage/
+
+# Node modules
+node_modules/

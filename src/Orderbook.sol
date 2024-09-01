@@ -7,7 +7,7 @@
 ██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
 ╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
 */
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -104,7 +104,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         _userOpenOrder[msg.sender] -= amount;
         _openDepth -= amount;
 
-        emit OrderKilled(msg.sender, amount);
+        emit OpenOrderKilled(msg.sender, amount);
         IERC20(_asset).safeTransfer(msg.sender, amount);
     }
 
@@ -114,7 +114,6 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         // if the order is already matched we have to account for the borrower's who filled the order.
         // If you kill a match order and there are multiple borrowers, the order will be closed in a LIFO manner.
         totalRemoved = _closeMatchOrders(msg.sender, amount);
-        emit OrderKilled(msg.sender, totalRemoved);
         IERC20(_asset).safeTransfer(msg.sender, totalRemoved);
     }
 
@@ -213,6 +212,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
                 remainingAmount -= amountToRemove;
                 _idleCapital[matches[index].borrower] += borrowAmount;
 
+                emit MatchOrderKilled(account, matches[index].borrower, amountToRemove);
                 if (matches[index].lCollateral == amountToRemove) matches.pop();
             } else {
                 break;

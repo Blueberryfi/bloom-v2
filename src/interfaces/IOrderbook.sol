@@ -7,7 +7,7 @@
 ██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
 ╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
 */
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 /**
  * @title IOrderbook
@@ -38,7 +38,15 @@ interface IOrderbook {
      * @param account The address of the user who created the lend order.
      * @param amount The amount of underlying assets returned to the user.
      */
-    event OrderKilled(address indexed account, uint256 amount);
+    event OpenOrderKilled(address indexed account, uint256 amount);
+
+    /**
+     * @notice Emitted when a user kills a lend order.
+     * @param account The address of the user who created the lend order.
+     * @param borrower The address of the borrower who filled the order.
+     * @param amount The amount of underlying assets returned to the user.
+     */
+    event MatchOrderKilled(address indexed account, address indexed borrower, uint256 amount);
 
     /**
      * @notice Emitted when idle capital is increased.

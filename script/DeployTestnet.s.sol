@@ -10,15 +10,12 @@
 pragma solidity 0.8.26;
 
 import {Script, console} from "forge-std/Script.sol";
+import {MockPriceFeed} from "../test/mocks/MockPriceFeed.sol";
+import {MockERC20} from "../test/mocks/MockERC20.sol";
 import {BloomPool} from "../src/BloomPool.sol";
 
 contract DeployScript is Script {
     address public owner = address(0);
-    address public stable = address(0);
-    address public rwa = address(0);
-    address public rwaPriceFeed = address(0);
-    uint256 public leverage = 0;
-    uint256 public spread = 0;
 
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -28,22 +25,38 @@ contract DeployScript is Script {
         if (owner == address(0)) {
             owner = deployer;
         }
-        require(owner != address(0), "Deployer is not set");
-        require(stable != address(0), "Stable is not set");
-        require(rwa != address(0), "RWA is not set");
-        require(rwaPriceFeed != address(0), "RWA PriceFeed is not set");
-        require(leverage != 0, "Leverage is not set");
-        require(spread != 0, "Spread is not set");
 
-        BloomPool bloomPool = new BloomPool(stable, rwa, rwaPriceFeed, leverage, spread, owner);
+        MockPriceFeed priceFeed = new MockPriceFeed(18);
+        priceFeed.setLatestRoundData(1, 100e18, block.timestamp, block.timestamp, 1);
+        console.log("MockPriceFeed: ", address(priceFeed));
+
+        (, int256 answer,,,) = priceFeed.latestRoundData();
+        require(answer == 100e18, "PriceFeed is not set");
+
+        MockERC20 stable = new MockERC20("Bloom USDC", "bUSDC", 6);
+        console.log("Stable: ", address(stable));
+        require(address(stable) != address(0), "Stable is not set");
+
+        MockERC20 billToken = new MockERC20("Bloom Bill", "bBill", 18);
+        console.log("BillToken: ", address(billToken));
+        require(address(billToken) != address(0), "BillToken is not set");
+
+        BloomPool bloomPool = new BloomPool(
+            address(stable),
+            address(billToken),
+            address(priceFeed),
+            50e18, // 50x leverage
+            0.995e18, // .5% spread for borrow return
+            owner
+        );
         console.log("BloomPool: ", address(bloomPool));
 
         require(bloomPool.owner() != address(0), "Deployer is not owner");
         require(bloomPool.asset() == address(stable), "Stable is not set");
-        require(bloomPool.rwa() == address(rwa), "BillToken is not set");
-        require(bloomPool.rwaPriceFeed() == address(rwaPriceFeed), "PriceFeed is not set");
-        require(bloomPool.leverage() == leverage, "Init leverage is not set");
-        require(bloomPool.spread() == spread, "Spread is not set");
+        require(bloomPool.rwa() == address(billToken), "BillToken is not set");
+        require(bloomPool.rwaPriceFeed() == address(priceFeed), "PriceFeed is not set");
+        require(bloomPool.leverage() == 50e18, "Init leverage is not set");
+        require(bloomPool.spread() == 0.995e18, "Spread is not set");
 
         vm.stopBroadcast();
     }

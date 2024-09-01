@@ -7,7 +7,7 @@
 ██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
 ╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
 */
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
@@ -153,7 +153,7 @@ contract OrderbookFuzzTest is BloomTestSetup {
             return;
         } else {
             vm.expectEmit(true, false, false, true);
-            emit IOrderbook.OrderKilled(alice, killSize);
+            emit IOrderbook.OpenOrderKilled(alice, killSize);
             bloomPool.killOpenOrder(killSize);
         }
 
@@ -180,8 +180,8 @@ contract OrderbookFuzzTest is BloomTestSetup {
 
         // Kill the matched order
         vm.startPrank(alice);
-        vm.expectEmit(true, false, false, true);
-        emit IOrderbook.OrderKilled(alice, killSize);
+        vm.expectEmit(true, true, false, true);
+        emit IOrderbook.MatchOrderKilled(alice, borrower, killSize);
         bloomPool.killMatchOrder(killSize);
 
         assertEq(bloomPool.amountMatched(alice), orderSize - killSize);
