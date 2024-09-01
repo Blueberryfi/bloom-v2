@@ -43,9 +43,10 @@ interface IOrderbook {
     /**
      * @notice Emitted when a user kills a lend order.
      * @param account The address of the user who created the lend order.
+     * @param borrower The address of the borrower who filled the order.
      * @param amount The amount of underlying assets returned to the user.
      */
-    event MatchOrderKilled(address indexed account, uint256 amount);
+    event MatchOrderKilled(address indexed account, address indexed borrower, uint256 amount);
 
     /**
      * @notice Emitted when idle capital is increased.

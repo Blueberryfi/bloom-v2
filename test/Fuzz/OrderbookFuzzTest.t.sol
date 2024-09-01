@@ -180,8 +180,8 @@ contract OrderbookFuzzTest is BloomTestSetup {
 
         // Kill the matched order
         vm.startPrank(alice);
-        vm.expectEmit(true, false, false, true);
-        emit IOrderbook.MatchOrderKilled(alice, killSize);
+        vm.expectEmit(true, true, false, true);
+        emit IOrderbook.MatchOrderKilled(alice, borrower, killSize);
         bloomPool.killMatchOrder(killSize);
 
         assertEq(bloomPool.amountMatched(alice), orderSize - killSize);
