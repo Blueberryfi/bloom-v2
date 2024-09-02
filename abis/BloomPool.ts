@@ -95,6 +95,13 @@ export const bloomPoolAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'futureMaturity',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
     name: 'getRate',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
@@ -277,6 +284,13 @@ export const bloomPoolAbi = [
     type: 'function',
     inputs: [{ name: 'leverage', internalType: 'uint256', type: 'uint256' }],
     name: 'setLeverage',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'maturity', internalType: 'uint256', type: 'uint256' }],
+    name: 'setMaturity',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -757,7 +771,7 @@ export const bloomPoolAbi = [
         name: 'priceFeed',
         internalType: 'address',
         type: 'address',
-        indexed: true,
+        indexed: false,
       },
     ],
     name: 'RwaPriceFeedSet',
@@ -774,6 +788,19 @@ export const bloomPoolAbi = [
       },
     ],
     name: 'SpreadSet',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'maturityLength',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'TbyMaturitySet',
   },
   {
     type: 'error',
