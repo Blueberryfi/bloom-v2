@@ -208,11 +208,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             percentSwapped = Math.WAD;
             rwaAmount = collateral.rwaAmount;
         }
-        
+
         uint256 tbyTotalSupply = _tby.totalSupply(id);
         uint256 tbyAmount = percentSwapped != Math.WAD ? tbyTotalSupply.mulWadUp(percentSwapped) : tbyTotalSupply;
         require(tbyAmount > 0, Errors.ZeroAmount());
-        
+
         // Calculate the amount of assets that will be swapped out.
         assetAmount = uint256(currentPrice).mulWad(rwaAmount) / (10 ** ((18 - _rwaDecimals) + (18 - _assetDecimals)));
 
@@ -232,7 +232,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             }
         }
         uint256 borrowerReturn = assetAmount - lenderReturn;
-        
+
         // Adjust the borrower and lender returns.
         _tbyBorrowerReturns[id] += borrowerReturn;
         _tbyLenderReturns[id] += lenderReturn;
