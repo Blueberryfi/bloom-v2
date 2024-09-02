@@ -101,9 +101,9 @@ interface IBloomPool is IOrderbook, IPoolStorage {
 
     /**
      * @notice Emitted when the maturity time for the next TBY is set.
-     * @param maturityTime The length of time in seconds that future TBY Ids will mature for.
+     * @param maturityLength The length of time in seconds that future TBY Ids will mature for.
      */
-    event TbyMaturitySet(uint256 maturityTime);
+    event TbyMaturitySet(uint256 maturityLength);
 
     /*///////////////////////////////////////////////////////////////
                             Functions
