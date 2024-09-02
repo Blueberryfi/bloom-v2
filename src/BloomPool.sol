@@ -298,7 +298,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         RwaPrice storage rwaPrice = _tbyIdToRwaPrice[id];
         uint256 startPrice = rwaPrice.startPrice;
         if (startPrice == 0) {
-            startPrice = uint128(currentPrice);
+            rwaPrice.startPrice = uint128(currentPrice);
         } else if (startPrice != currentPrice) {
             rwaPrice.startPrice = uint128(_normalizePrice(startPrice, currentPrice, rwaAmount, existingCollateral));
         }
