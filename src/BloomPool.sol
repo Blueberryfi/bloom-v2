@@ -9,11 +9,10 @@
 */
 pragma solidity 0.8.26;
 
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@solady/utils/ReentrancyGuard.sol";
-import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
 import {AggregatorV3Interface} from "@chainlink/shared/interfaces/AggregatorV3Interface.sol";
-
+import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
+import {ReentrancyGuard} from "@solady/utils/ReentrancyGuard.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
@@ -66,6 +65,14 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
     /// @notice A mapping of TBY id if the TBY is eligible for redemption.
     mapping(uint256 => bool) private _isTbyRedeemable;
+
+    /*///////////////////////////////////////////////////////////////
+                        Constants & Immutables
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice The buffer time between the first minted token of a given TBY id
+    ///         and the last possible swap in for that tokenId.
+    uint256 constant SWAP_BUFFER = 48 hours;
 
     /*///////////////////////////////////////////////////////////////
                             Modifiers   
@@ -145,21 +152,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         nonReentrant
         returns (uint256 id, uint256 amountSwapped)
     {
-        // Get the TBY id to mint
-        id = _lastMintedId;
-        TbyMaturity memory maturity = _idToMaturity[id];
-
-        // If the timestamp of the last minted TBYs start is greater than 48 hours from now, this swap is for a new TBY Id.
-        if (block.timestamp > maturity.start + 48 hours) {
-            // Last minted id is set to type(uint256).max, so we need to wrap around to 0 to start the first TBY.
-            unchecked {
-                id = ++_lastMintedId;
-            }
-
-            uint128 start = uint128(block.timestamp);
-            uint128 end = start + 180 days;
-            _idToMaturity[id] = TbyMaturity(start, end);
-        }
+        id = _handleTbyId();
 
         // Iterate through the accounts and convert the matched orders to live TBYs.
         uint256 len = accounts.length;
@@ -170,28 +163,17 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             if (assetAmount == 0) break;
         }
 
-        // Initialize the starting price of the RWA token if it has not been set
-        RwaPrice storage rwaPrice = _tbyIdToRwaPrice[id];
         TbyCollateral storage collateral = _idToCollateral[id];
         uint256 currentPrice = _rwaPrice();
 
+        // Calculate the amount of RWA tokens needed to complete the swap.
         uint256 rwaAmount = (amountSwapped * _assetScalingFactor).divWadUp(currentPrice) / _rwaScalingFactor;
         require(rwaAmount > 0, Errors.ZeroAmount());
 
-        if (rwaPrice.startPrice == 0) {
-            rwaPrice.startPrice = uint128(currentPrice);
-        } else if (rwaPrice.startPrice != currentPrice) {
-            // In the event that the market maker is doing multiple swaps for the same TBY Id,
-            //     and the rwa price has changes, we need to recalculate the starting price of the TBY,
-            //     to ensure accuracy in the TBY's rate of return. To do this we will normalize the price
-            //     by taking the weighted average of the startPrice and the currentPrice.
-            uint256 totalValue = uint256(collateral.rwaAmount).mulWad(rwaPrice.startPrice)
-                + rwaAmount.mulWad(currentPrice) / _rwaScalingFactor;
-            uint256 totalCollateral = collateral.rwaAmount + rwaAmount;
-            uint256 normalizedPrice = totalValue.divWad(totalCollateral);
-            rwaPrice.startPrice = uint128(normalizedPrice);
-        }
+        // Initalize or normalize the starting price of the TBY.
+        _setStartPrice(id, currentPrice, rwaAmount, collateral.rwaAmount);
 
+        // Update the collateral for the TBY id.
         collateral.rwaAmount += uint128(rwaAmount);
 
         emit MarketMakerSwappedIn(id, msg.sender, rwaAmount, amountSwapped);
@@ -220,8 +202,8 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             _tbyIdToRwaPrice[id].endPrice = uint128(currentPrice);
         }
 
+        // Calculate the percentage of RWA tokens that are being currently swapped
         uint256 percentSwapped = rwaAmount.divWad(collateral.rwaAmount);
-
         if (percentSwapped > Math.WAD) {
             percentSwapped = Math.WAD;
             rwaAmount = collateral.rwaAmount;
@@ -231,6 +213,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         uint256 tbyAmount = percentSwapped != Math.WAD ? tbyTotalSupply.mulWadUp(percentSwapped) : tbyTotalSupply;
         require(tbyAmount > 0, Errors.ZeroAmount());
 
+        // Calculate the amount of assets that will be swapped out.
         assetAmount = uint256(currentPrice).mulWad(rwaAmount) / (10 ** ((18 - _rwaDecimals) + (18 - _assetDecimals)));
 
         uint256 lenderReturn = getRate(id).mulWad(tbyAmount);
@@ -250,9 +233,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         }
         uint256 borrowerReturn = assetAmount - lenderReturn;
 
+        // Adjust the borrower and lender returns.
         _tbyBorrowerReturns[id] += borrowerReturn;
         _tbyLenderReturns[id] += lenderReturn;
 
+        // Update the collateral for the TBY id.
         collateral.rwaAmount -= uint128(rwaAmount);
         collateral.assetAmount += uint128(assetAmount);
 
@@ -278,6 +263,66 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     /*///////////////////////////////////////////////////////////////
                             Internal Functions    
     //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Calculates the TBY id to mint based on the last minted TBY id and the swap buffer.
+     * @dev If the last minted TBY id was created 48 hours ago or more, a new TBY id is minted.
+     * @return id The id of the TBY to mint.
+     */
+    function _handleTbyId() private returns (uint256 id) {
+        // Get the TBY id to mint
+        id = _lastMintedId;
+        TbyMaturity memory maturity = _idToMaturity[id];
+
+        // If the timestamp of the last minted TBYs start is greater than 48 hours from now, this swap is for a new TBY Id.
+        if (block.timestamp > maturity.start + SWAP_BUFFER) {
+            // Last minted id is set to type(uint256).max, so we need to wrap around to 0 to start the first TBY.
+            unchecked {
+                id = ++_lastMintedId;
+            }
+            uint128 start = uint128(block.timestamp);
+            uint128 end = start + 180 days;
+            _idToMaturity[id] = TbyMaturity(start, end);
+        }
+    }
+
+    /**
+     * @notice Initializes or normalizes the starting price of the TBY.
+     * @dev If the TBY Id has already been minted before the start price will be normalized via a time weighted average.
+     * @param id The id of the TBY to initialize the start price for.
+     * @param currentPrice The current price of the RWA token.
+     * @param rwaAmount The amount of rwaAssets that are being swapped in.
+     * @param existingCollateral The amount of RWA collateral already in the pool, before the swap, for the TBY id.
+     */
+    function _setStartPrice(uint256 id, uint256 currentPrice, uint256 rwaAmount, uint256 existingCollateral) private {
+        RwaPrice storage rwaPrice = _tbyIdToRwaPrice[id];
+        uint256 startPrice = rwaPrice.startPrice;
+        if (startPrice == 0) {
+            rwaPrice.startPrice = uint128(currentPrice);
+        } else if (startPrice != currentPrice) {
+            rwaPrice.startPrice = uint128(_normalizePrice(startPrice, currentPrice, rwaAmount, existingCollateral));
+        }
+    }
+
+    /**
+     * @notice Normalizes the price of the RWA by taking the weighted average of the startPrice and the currentPrice
+     * @dev This is done n the event that the market maker is doing multiple swaps for the same TBY Id,
+     *      and the rwa price has changes. We need to recalculate the starting price of the TBY,
+     *      to ensure accuracy in the TBY's rate of return.
+     * @param startPrice The starting price of the RWA, before the swap.
+     * @param currentPrice The Current price of the RWA token.
+     * @param amount The amount of RWA tokens being swapped in.
+     * @param existingCollateral The existing RWA collateral in the pool, before the swap, for the TBY id.
+     */
+    function _normalizePrice(uint256 startPrice, uint256 currentPrice, uint256 amount, uint256 existingCollateral)
+        private
+        view
+        returns (uint128)
+    {
+        uint256 totalValue = (existingCollateral.mulWad(startPrice) + amount.mulWad(currentPrice)) / _rwaScalingFactor;
+        uint256 totalCollateral = existingCollateral + amount;
+        return uint128(totalValue.divWad(totalCollateral));
+    }
 
     /// @notice Returns the current price of the RWA token.
     function _rwaPrice() private view returns (uint256) {
@@ -335,7 +380,6 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             _idToTotalBorrowed[id] += borrowerAmountConverted;
             uint256 totalLenderFunds = amountUsed - borrowerAmountConverted;
             _matchedDepth -= totalLenderFunds;
-
             _tby.mint(id, account, totalLenderFunds);
         }
     }
@@ -353,6 +397,14 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         emit RwaPriceFeedSet(rwaPriceFeed_);
     }
 
+    /**
+     * @notice Calculates the amount of funds to remove from a matched order.
+     * @param remainingAmount The remaining amount of assets left to remove.
+     * @param lCollateral Amount of collateral provided by the lender.
+     * @param bCollateral Amount of collateral provided by the borrower.
+     * @return lenderFunds The amount of lenderFunds that will be removed from the order.
+     * @return borrowerFunds The amount of borrowerFunds that will be removed from the order.
+     */
     function _calculateRemovalAmounts(uint256 remainingAmount, uint128 lCollateral, uint128 bCollateral)
         internal
         pure
@@ -406,34 +458,42 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         return _rwaPriceFeed;
     }
 
+    /// @inheritdoc IBloomPool
     function tbyCollateral(uint256 id) external view returns (TbyCollateral memory) {
         return _idToCollateral[id];
     }
 
+    /// @inheritdoc IBloomPool
     function tbyMaturity(uint256 id) external view returns (TbyMaturity memory) {
         return _idToMaturity[id];
     }
 
+    /// @inheritdoc IBloomPool
     function tbyRwaPricing(uint256 id) external view returns (RwaPrice memory) {
         return _tbyIdToRwaPrice[id];
     }
 
+    /// @inheritdoc IBloomPool
     function borrowerAmount(address account, uint256 id) external view returns (uint256) {
         return _borrowerAmounts[account][id];
     }
 
+    /// @inheritdoc IBloomPool
     function totalBorrowed(uint256 id) external view returns (uint256) {
         return _idToTotalBorrowed[id];
     }
 
+    /// @inheritdoc IBloomPool
     function lenderReturns(uint256 id) external view returns (uint256) {
         return _tbyLenderReturns[id];
     }
 
+    /// @inheritdoc IBloomPool
     function borrowerReturns(uint256 id) external view returns (uint256) {
         return _tbyBorrowerReturns[id];
     }
 
+    /// @inheritdoc IBloomPool
     function isTbyRedeemable(uint256 id) external view returns (bool) {
         return _isTbyRedeemable[id];
     }
