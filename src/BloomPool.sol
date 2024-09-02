@@ -36,6 +36,9 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     /// @notice The last TBY id that was minted.
     uint256 private _lastMintedId;
 
+    /// @notice The length of time that future minted TBY Id will mature for. Default is 180 days.
+    uint256 private _futureMaturity;
+
     /// @notice Price feed for the RWA token.
     address private _rwaPriceFeed;
 
@@ -74,6 +77,9 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     ///         and the last possible swap in for that tokenId.
     uint256 constant SWAP_BUFFER = 48 hours;
 
+    /// @notice The default length of time that TBYs mature.
+    uint256 constant DEFAULT_MATURITY = 180 days;
+
     /*///////////////////////////////////////////////////////////////
                             Modifiers   
     //////////////////////////////////////////////////////////////*/
@@ -98,6 +104,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         require(owner_ != address(0), Errors.ZeroAddress());
         _setPriceFeed(rwaPriceFeed_);
         _lastMintedId = type(uint256).max;
+        _futureMaturity = DEFAULT_MATURITY;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -252,6 +259,15 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     }
 
     /**
+     * @notice Sets the length of time that future TBY Ids will mature for.
+     * @param maturity The length of time that future TBYs Id will mature for.
+     */
+    function setMaturity(uint256 maturity) external onlyOwner {
+        _futureMaturity = maturity;
+        emit TbyMaturitySet(maturity);
+    }
+
+    /**
      * @notice Sets the price feed for the RWA token.
      * @dev Only the owner can call this function.
      * @param rwaPriceFeed_ The address of the price feed for the RWA token.
@@ -281,7 +297,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
                 id = ++_lastMintedId;
             }
             uint128 start = uint128(block.timestamp);
-            uint128 end = start + 180 days;
+            uint128 end = start + uint128(_futureMaturity);
             _idToMaturity[id] = TbyMaturity(start, end);
         }
     }
@@ -449,8 +465,14 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         return ((_rwaPrice() * _spread) / rwaPrice.startPrice);
     }
 
+    /// @inheritdoc IBloomPool
     function lastMintedId() external view returns (uint256) {
         return _lastMintedId;
+    }
+
+    /// @inheritdoc IBloomPool
+    function futureMaturity() external view returns (uint256) {
+        return _futureMaturity;
     }
 
     /// @inheritdoc IBloomPool

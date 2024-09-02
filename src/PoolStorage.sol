@@ -64,7 +64,7 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
     /// @notice Scaling factor for the RWA token.
     uint256 internal immutable _rwaScalingFactor;
 
-    /// @notice The maximum leverage allowed for the pool.
+    /// @notice The upper bound leverage allowed for pool (Cant be set to 100x but just under).
     uint256 constant MAX_LEVERAGE = 100e18;
 
     /// @notice Maximum spread between the TBY rate and the rate of the RWA's price appreciation.

@@ -32,6 +32,7 @@ contract BloomUnitTest is BloomTestSetup {
         );
         assertNotEq(address(newPool), address(0));
         assertEq(newPool.rwaPriceFeed(), address(priceFeed));
+        assertEq(newPool.futureMaturity(), 180 days);
     }
 
     function testSetPriceFeedNonOwner() public {
@@ -39,6 +40,13 @@ contract BloomUnitTest is BloomTestSetup {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
         bloomPool.setPriceFeed(address(1));
         assertEq(bloomPool.rwaPriceFeed(), address(priceFeed));
+    }
+
+    function testSetMaturityNonOwner() public {
+        /// Expect revert if not owner calls
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        bloomPool.setMaturity(10 days);
+        assertEq(bloomPool.futureMaturity(), 180 days);
     }
 
     function testSetPriceFeedSuccess() public {
@@ -64,6 +72,13 @@ contract BloomUnitTest is BloomTestSetup {
         priceFeed.setLatestRoundData(1, 1, 0, 0, 0);
         vm.expectRevert(Errors.OutOfDate.selector);
         bloomPool.setPriceFeed(address(priceFeed));
+    }
+
+    function testSetMaturitySuccess() public {
+        vm.startPrank(owner);
+        vm.expectEmit(false, false, false, true);
+        emit IBloomPool.TbyMaturitySet(10 days);
+        bloomPool.setMaturity(10 days);
     }
 
     function testInvalidTbyRate() public {
@@ -209,5 +224,42 @@ contract BloomUnitTest is BloomTestSetup {
         assertGt(tby.balanceOf(alice, 0), 0);
         assertGt(tby.balanceOf(alice, 1), 0);
         assertGt(tby.balanceOf(alice, 2), 0);
+    }
+
+    function testTbyMaturityUpdateDoesntAffectExistingTby() public {
+        vm.startPrank(owner);
+        bloomPool.whitelistMarketMaker(marketMaker, true);
+        bloomPool.whitelistBorrower(borrower, true);
+
+        _createLendOrder(alice, 110e6);
+        _fillOrder(alice, 110e6);
+        lenders.push(alice);
+        _swapIn(55e6);
+
+        uint256 expectedTby0Maturity = bloomPool.tbyMaturity(0).end;
+        // Fast forward 1 day & update price feed
+        _skipAndUpdatePrice(1 days, 110e8, 2);
+
+        // update maturity to 10 days
+        vm.startPrank(owner);
+        bloomPool.setMaturity(10 days);
+        vm.stopPrank();
+
+        // Complete swap and validate that the maturity is still 180 days
+        _swapIn(55e6);
+        assertEq(bloomPool.tbyMaturity(0).end, expectedTby0Maturity);
+
+        // Fast forward 1 month & update price feed
+        _skipAndUpdatePrice(30 days, 111e8, 3);
+
+        // Mint a new TBY
+        _createLendOrder(alice, 111e6);
+        _fillOrder(alice, 111e6);
+        _swapIn(111e6);
+
+        // Validate that the maturity of the first TBY is still 180 days
+        assertEq(bloomPool.tbyMaturity(0).end, expectedTby0Maturity);
+        // Validate that the maturity of the second TBY is 10 days
+        assertEq(bloomPool.tbyMaturity(1).end, block.timestamp + 10 days);
     }
 }
