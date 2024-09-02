@@ -97,7 +97,13 @@ interface IBloomPool is IOrderbook, IPoolStorage {
      * @notice Emitted when the RWA price feed is set.
      * @param priceFeed The address of the RWA price feed.
      */
-    event RwaPriceFeedSet(address indexed priceFeed);
+    event RwaPriceFeedSet(address priceFeed);
+
+    /**
+     * @notice Emitted when the maturity time for the next TBY is set.
+     * @param maturityLength The length of time in seconds that future TBY Ids will mature for.
+     */
+    event TbyMaturitySet(uint256 maturityLength);
 
     /*///////////////////////////////////////////////////////////////
                             Functions
@@ -128,6 +134,9 @@ interface IBloomPool is IOrderbook, IPoolStorage {
 
     /// @notice Returns the last minted TBY id.
     function lastMintedId() external view returns (uint256);
+
+    /// @notice Returns the length of time that the next minted TBY Id will mature for. Default is 180 days.
+    function futureMaturity() external view returns (uint256);
 
     /// @notice Returns the RWAs price feed address.
     function rwaPriceFeed() external view returns (address);
