@@ -192,7 +192,7 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
 
     /// @notice Internal logic to set the leverage.
     function _setLeverage(uint256 leverage) internal {
-        require(leverage >= Math.WAD && leverage <= MAX_LEVERAGE, Errors.InvalidLeverage());
+        require(leverage >= Math.WAD && leverage < MAX_LEVERAGE, Errors.InvalidLeverage());
         _leverage = leverage;
         emit LeverageSet(leverage);
     }
