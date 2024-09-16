@@ -637,7 +637,7 @@ export const bloomPoolAbi = [
     inputs: [
       { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
       {
-        name: 'account',
+        name: 'lender',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -649,7 +649,7 @@ export const bloomPoolAbi = [
         indexed: true,
       },
       {
-        name: 'amount',
+        name: 'lenderCollateral',
         internalType: 'uint256',
         type: 'uint256',
         indexed: false,
