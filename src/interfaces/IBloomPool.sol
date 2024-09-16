@@ -63,7 +63,13 @@ interface IBloomPool is IOrderbook, IPoolStorage {
      * @param lenderCollateral The amount of lender collateral converted.
      * @param borrowerCollateral The amount of borrower collateral converted.
      */
-    event MatchOrderConverted(uint256 indexed id, address indexed lender, address indexed borrower, uint256 lenderCollateral, uint256 borrowerCollateral);
+    event MatchOrderConverted(
+        uint256 indexed id,
+        address indexed lender,
+        address indexed borrower,
+        uint256 lenderCollateral,
+        uint256 borrowerCollateral
+    );
 
     /**
      * @notice Emitted when the market maker swaps in rwa tokens for assets.
