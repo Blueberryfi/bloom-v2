@@ -67,8 +67,8 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
     /// @notice The upper bound leverage allowed for pool (Cant be set to 100x but just under).
     uint256 constant MAX_LEVERAGE = 100e18;
 
-    /// @notice Maximum spread between the TBY rate and the rate of the RWA's price appreciation.
-    uint256 constant MAX_SPREAD = 0.85e18;
+    /// @notice Minimum spread between the TBY rate and the rate of the RWA's price appreciation.
+    uint256 constant MIN_SPREAD = 0.85e18;
 
     /*///////////////////////////////////////////////////////////////
                             Modifiers    
@@ -199,7 +199,7 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
 
     /// @notice Internal logic to set the spread.
     function _setSpread(uint256 spread_) internal {
-        require(spread_ >= MAX_SPREAD, Errors.InvalidSpread());
+        require(spread_ >= MIN_SPREAD, Errors.InvalidSpread());
         _spread = spread_;
         emit SpreadSet(spread_);
     }

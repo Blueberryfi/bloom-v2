@@ -462,7 +462,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
         // If the TBY has matured, and is not-eligible for redemption due to market maker delay,
         //     calculate price based on the current price of the RWA token via the price feed.
-        return ((_rwaPrice() * _spread) / rwaPrice.startPrice);
+        uint256 price = (_rwaPrice() * _spread) / rwaPrice.startPrice;
+
+        // The rate should never be less than 1e18. Rate will not accrue until both the lender and borrower can start
+        //     accruing interest.
+        return price > Math.WAD ? price : Math.WAD;
     }
 
     /// @inheritdoc IBloomPool
