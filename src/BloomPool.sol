@@ -379,7 +379,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
                 _borrowerAmounts[matches[index].borrower][id] += borrowerFunds;
                 borrowerAmountConverted += borrowerFunds;
 
-                emit MatchOrderConverted(id, account, matches[index].borrower, amountToRemove, borrowerFunds);
+                emit MatchOrderConverted(id, account, matches[index].borrower, lenderFunds, borrowerFunds);
 
                 if (lenderFunds == matches[index].lCollateral) {
                     matches.pop();

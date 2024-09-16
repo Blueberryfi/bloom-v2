@@ -56,14 +56,14 @@ interface IBloomPool is IOrderbook, IPoolStorage {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Emitted when a user kills a lend order.
+     * @notice Emitted when a lenders match order is converted to a live TBY.
      * @param id The unique identifier of the TBY.
-     * @param account The address of the user who created the lend order.
+     * @param lender The address of the user who created the lend order.
      * @param borrower The address of the borrower who filled the order.
-     * @param amount The amount of underlying assets returned to the user.
-     * @param borrowerCollateral The amount of collateral converted to borrower funds.
+     * @param lenderCollateral The amount of lender collateral converted.
+     * @param borrowerCollateral The amount of borrower collateral converted.
      */
-    event MatchOrderConverted(uint256 indexed id, address indexed account, address indexed borrower, uint256 amount, uint256 borrowerCollateral);
+    event MatchOrderConverted(uint256 indexed id, address indexed lender, address indexed borrower, uint256 lenderCollateral, uint256 borrowerCollateral);
 
     /**
      * @notice Emitted when the market maker swaps in rwa tokens for assets.
