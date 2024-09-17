@@ -28,7 +28,7 @@ contract BloomUnitTest is BloomTestSetup {
 
     function testDeployment() public {
         BloomPool newPool = new BloomPool(
-            address(stable), address(billToken), address(priceFeed), 1 days,initialLeverage, initialSpread, owner
+            address(stable), address(billToken), address(priceFeed), 1 days, initialLeverage, initialSpread, owner
         );
         assertNotEq(address(newPool), address(0));
         assertEq(newPool.rwaPriceFeed().priceFeed, address(priceFeed));

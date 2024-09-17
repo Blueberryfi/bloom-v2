@@ -35,7 +35,7 @@ contract DeployScript is Script {
         require(leverage != 0, "Leverage is not set");
         require(spread != 0, "Spread is not set");
 
-        BloomPool bloomPool = new BloomPool(stable, rwa, rwaPriceFeed, 1 days,leverage, spread, owner);
+        BloomPool bloomPool = new BloomPool(stable, rwa, rwaPriceFeed, 1 days, leverage, spread, owner);
         console.log("BloomPool: ", address(bloomPool));
 
         require(bloomPool.owner() != address(0), "Deployer is not owner");
