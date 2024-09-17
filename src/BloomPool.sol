@@ -344,6 +344,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     function _rwaPrice() private view returns (uint256) {
         (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
             AggregatorV3Interface(_rwaPriceFeed).latestRoundData();
+        require(answer > 0, Errors.InvalidPriceFeed());
         require(updatedAt >= block.timestamp - 1 days, Errors.OutOfDate());
         require(answeredInRound >= roundId, Errors.OutOfDate());
 
