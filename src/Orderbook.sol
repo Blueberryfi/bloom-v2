@@ -110,7 +110,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function killMatchOrder(uint256 amount) public returns (uint256 totalRemoved) {
+    function killMatchOrder(uint256 amount) external returns (uint256 totalRemoved) {
         _amountZeroCheck(amount);
         // if the order is already matched we have to account for the borrower's who filled the order.
         // If you kill a match order and there are multiple borrowers, the order will be closed in a LIFO manner.
@@ -274,7 +274,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function idleCapital(address account) public view returns (uint256) {
+    function idleCapital(address account) external view returns (uint256) {
         return _idleCapital[account];
     }
 }

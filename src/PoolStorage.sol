@@ -138,7 +138,7 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
      * @dev Leverage is scaled to 1e18. (20x leverage = 20e18)
      * @param leverage Updated leverage
      */
-    function setLeverage(uint256 leverage) public onlyOwner {
+    function setLeverage(uint256 leverage) external onlyOwner {
         _setLeverage(leverage);
     }
 
@@ -146,7 +146,7 @@ abstract contract PoolStorage is IPoolStorage, Ownable2Step {
      * @notice Updates the spread between the TBY rate and the RWA rate.
      * @param spread_ The new spread value.
      */
-    function setSpread(uint256 spread_) public onlyOwner {
+    function setSpread(uint256 spread_) external onlyOwner {
         _setSpread(spread_);
     }
 
