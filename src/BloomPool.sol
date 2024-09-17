@@ -39,11 +39,8 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     /// @notice The length of time that future minted TBY Id will mature for. Default is 180 days.
     uint256 private _futureMaturity;
 
-    /// @notice Price feed for the RWA token.
-    address private _rwaPriceFeed;
-
-    /// @notice Decimals for the RWA price feed.
-    uint8 private _rwaPriceFeedDecimals;
+    /// @notice The price feed for the RWA token.
+    RwaPriceFeed private _rwaPriceFeed;
 
     /// @notice A mapping of the TBY id to the collateral that is backed by the tokens.
     mapping(uint256 => TbyCollateral) private _idToCollateral;
@@ -97,12 +94,13 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         address asset_,
         address rwa_,
         address rwaPriceFeed_,
+        uint64 priceFeedUpdateInterval_,
         uint256 initLeverage,
         uint256 spread,
         address owner_
     ) Orderbook(asset_, rwa_, initLeverage, spread, owner_) {
         require(owner_ != address(0), Errors.ZeroAddress());
-        _setPriceFeed(rwaPriceFeed_);
+        _setPriceFeed(rwaPriceFeed_, priceFeedUpdateInterval_);
         _lastMintedId = type(uint256).max;
         _futureMaturity = DEFAULT_MATURITY;
     }
@@ -271,9 +269,10 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
      * @notice Sets the price feed for the RWA token.
      * @dev Only the owner can call this function.
      * @param rwaPriceFeed_ The address of the price feed for the RWA token.
+     * @param priceFeedUpdateInterval_ The interval at which the price feed should be updated.
      */
-    function setPriceFeed(address rwaPriceFeed_) external onlyOwner {
-        _setPriceFeed(rwaPriceFeed_);
+    function setPriceFeed(address rwaPriceFeed_, uint64 priceFeedUpdateInterval_) external onlyOwner {
+        _setPriceFeed(rwaPriceFeed_, priceFeedUpdateInterval_);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -342,13 +341,16 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
     /// @notice Returns the current price of the RWA token.
     function _rwaPrice() private view returns (uint256) {
+        RwaPriceFeed memory priceFeed = _rwaPriceFeed;
         (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
-            AggregatorV3Interface(_rwaPriceFeed).latestRoundData();
+            AggregatorV3Interface(priceFeed.priceFeed).latestRoundData();
+
+        // Validate the latest round data from the price feed.
         require(answer > 0, Errors.InvalidPriceFeed());
-        require(updatedAt >= block.timestamp - 1 days, Errors.OutOfDate());
+        require(updatedAt >= block.timestamp - priceFeed.updateInterval, Errors.OutOfDate());
         require(answeredInRound >= roundId, Errors.OutOfDate());
 
-        uint256 scaler = 10 ** (18 - _rwaPriceFeedDecimals);
+        uint256 scaler = 10 ** (18 - priceFeed.decimals);
         return uint256(answer) * scaler;
     }
 
@@ -402,15 +404,23 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     }
 
     /// @notice Logic to set the price feed for the RWA token.
-    function _setPriceFeed(address rwaPriceFeed_) internal {
+    function _setPriceFeed(address rwaPriceFeed_, uint64 priceFeedUpdateInterval_) internal {
+        require(priceFeedUpdateInterval_ != 0, Errors.ZeroAmount());
         (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
             AggregatorV3Interface(rwaPriceFeed_).latestRoundData();
+
+        // Validate the latest round data from the price feed.
         require(answer > 0, Errors.InvalidPriceFeed());
-        require(updatedAt >= block.timestamp - 1 days, Errors.OutOfDate());
+        require(updatedAt >= block.timestamp - priceFeedUpdateInterval_, Errors.OutOfDate());
         require(answeredInRound >= roundId, Errors.OutOfDate());
 
-        _rwaPriceFeed = rwaPriceFeed_;
-        _rwaPriceFeedDecimals = AggregatorV3Interface(rwaPriceFeed_).decimals();
+        // Set the price feed for the RWA token.
+        _rwaPriceFeed = RwaPriceFeed({
+            priceFeed: rwaPriceFeed_,
+            updateInterval: priceFeedUpdateInterval_,
+            decimals: AggregatorV3Interface(rwaPriceFeed_).decimals()
+        });
+
         emit RwaPriceFeedSet(rwaPriceFeed_);
     }
 
@@ -481,7 +491,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     }
 
     /// @inheritdoc IBloomPool
-    function rwaPriceFeed() external view returns (address) {
+    function rwaPriceFeed() external view returns (RwaPriceFeed memory) {
         return _rwaPriceFeed;
     }
 

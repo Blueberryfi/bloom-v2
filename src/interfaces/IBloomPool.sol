@@ -51,6 +51,18 @@ interface IBloomPool is IOrderbook, IPoolStorage {
         uint128 endPrice;
     }
 
+    /**
+     * @notice Struct to store the price feed for an RWA.
+     * @param priceFeed The address of the price feed.
+     * @param updateInterval The interval in seconds at which the price feed should be updated.
+     * @param decimals The number of decimals the price feed returns.
+     */
+    struct RwaPriceFeed {
+        address priceFeed;
+        uint64 updateInterval;
+        uint8 decimals;
+    }
+
     /*///////////////////////////////////////////////////////////////
                             Events
     //////////////////////////////////////////////////////////////*/
@@ -154,8 +166,8 @@ interface IBloomPool is IOrderbook, IPoolStorage {
     /// @notice Returns the length of time that the next minted TBY Id will mature for. Default is 180 days.
     function futureMaturity() external view returns (uint256);
 
-    /// @notice Returns the RWAs price feed address.
-    function rwaPriceFeed() external view returns (address);
+    /// @notice Returns the RWAs price feed struct.
+    function rwaPriceFeed() external view returns (RwaPriceFeed memory);
 
     /// @notice Returns the TbyCollateral struct containing the breakdown of collateral for a given Tby ID.
     function tbyCollateral(uint256 id) external view returns (TbyCollateral memory);

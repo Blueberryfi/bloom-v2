@@ -45,6 +45,7 @@ contract DeployScript is Script {
             address(stable),
             address(billToken),
             address(priceFeed),
+            1 days,
             50e18, // 50x leverage
             0.995e18, // .5% spread for borrow return
             owner
@@ -54,7 +55,7 @@ contract DeployScript is Script {
         require(bloomPool.owner() != address(0), "Deployer is not owner");
         require(bloomPool.asset() == address(stable), "Stable is not set");
         require(bloomPool.rwa() == address(billToken), "BillToken is not set");
-        require(bloomPool.rwaPriceFeed() == address(priceFeed), "PriceFeed is not set");
+        require(bloomPool.rwaPriceFeed().priceFeed == address(priceFeed), "PriceFeed is not set");
         require(bloomPool.leverage() == 50e18, "Init leverage is not set");
         require(bloomPool.spread() == 0.995e18, "Spread is not set");
 
