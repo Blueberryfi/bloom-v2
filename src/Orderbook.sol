@@ -119,6 +119,29 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
+    function killBorrowerMatch(address lender) external returns (uint256 lenderReturn, uint256 borrowerReturn) {
+        MatchOrder[] storage matches = _userMatchedOrders[lender];
+
+        uint256 len = matches.length;
+        for (uint256 i = 0; i != len; ++i) {
+            if (matches[i].borrower == msg.sender) {
+                lenderReturn = uint256(matches[i].lCollateral);
+                borrowerReturn = uint256(matches[i].bCollateral);
+                // Zero out the match order to preserve the array's order
+                matches[i] = MatchOrder({lCollateral: 0, bCollateral: 0, borrower: address(0)});
+                _matchedDepth -= lenderReturn;
+                break;
+            }
+        }
+
+        require(lenderReturn != 0, Errors.MatchOrderNotFound());
+        emit MatchOrderKilled(lender, msg.sender, lenderReturn);
+
+        IERC20(_asset).safeTransfer(lender, lenderReturn);
+        IERC20(_asset).safeTransfer(msg.sender, borrowerReturn);
+    }
+
+    /// @inheritdoc IOrderbook
     function withdrawIdleCapital(uint256 amount) external {
         address account = msg.sender;
         _amountZeroCheck(amount);
@@ -200,6 +223,12 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         uint256 length = matches.length;
         for (uint256 i = length; i != 0; --i) {
             uint256 index = i - 1;
+
+            // If the match order is already closed by the borrower, skip it
+            if (matches[index].borrower == address(0)) {
+                matches.pop();
+                continue;
+            }
 
             if (remainingAmount != 0) {
                 uint256 amountToRemove = Math.min(remainingAmount, matches[index].lCollateral);

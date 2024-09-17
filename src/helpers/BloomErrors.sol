@@ -44,6 +44,9 @@ library BloomErrors {
     ///         Amount post leverage must be greater than 0.
     error InvalidMatchSize();
 
+    /// @notice Emitted when a borrower tries to kill a match order that does not exist.
+    error MatchOrderNotFound();
+
     /*///////////////////////////////////////////////////////////////
                             KYC Errors    
     //////////////////////////////////////////////////////////////*/
