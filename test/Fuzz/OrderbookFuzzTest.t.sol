@@ -294,6 +294,23 @@ contract OrderbookFuzzTest is BloomTestSetup {
         assertEq(stable.balanceOf(borrower), borrowBalanceBefore + withdrawAmount);
     }
 
+    function testFuzz_KillBorrowerMatch(uint256 orderSize) public {
+        orderSize = bound(orderSize, 1e6, 1_000_000e6);
+
+        _createLendOrder(alice, orderSize);
+        _fillOrder(alice, orderSize);
+
+        vm.startPrank(borrower);
+        vm.expectEmit(true, true, false, true);
+        emit IOrderbook.MatchOrderKilled(alice, borrower, orderSize);
+        bloomPool.killBorrowerMatch(alice);
+
+        assertEq(bloomPool.openDepth(), orderSize);
+        assertEq(bloomPool.matchedDepth(), 0);
+        assertEq(bloomPool.amountOpen(alice), orderSize);
+        assertEq(bloomPool.amountMatched(alice), 0);
+    }
+
     function testFuzz_FillOrderWithIdleCapital(uint256 orderSize) public {
         orderSize = bound(orderSize, 1e6, 1_000_000e6);
 

@@ -61,11 +61,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     /// @inheritdoc IOrderbook
     function lendOrder(uint256 amount) external {
         _amountZeroCheck(amount);
-
-        _openDepth += amount;
-        _userOpenOrder[msg.sender] += amount;
-
-        emit OrderCreated(msg.sender, amount);
+        _openOrder(msg.sender, amount);
         IERC20(_asset).safeTransferFrom(msg.sender, address(this), amount);
     }
 
@@ -119,6 +115,30 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
+    function killBorrowerMatch(address lender) external returns (uint256 lenderAmount, uint256 borrowerReturn) {
+        MatchOrder[] storage matches = _userMatchedOrders[lender];
+
+        uint256 len = matches.length;
+        for (uint256 i = 0; i != len; ++i) {
+            if (matches[i].borrower == msg.sender) {
+                lenderAmount = uint256(matches[i].lCollateral);
+                borrowerReturn = uint256(matches[i].bCollateral);
+                // Zero out the match order to preserve the array's order
+                matches[i] = MatchOrder({lCollateral: 0, bCollateral: 0, borrower: address(0)});
+                // Decrement the matched depth and open move the lenders collateral to an open order.
+                _matchedDepth -= lenderAmount;
+                _openOrder(lender, lenderAmount);
+                break;
+            }
+        }
+
+        require(lenderAmount != 0, Errors.MatchOrderNotFound());
+        emit MatchOrderKilled(lender, msg.sender, lenderAmount);
+
+        IERC20(_asset).safeTransfer(msg.sender, borrowerReturn);
+    }
+
+    /// @inheritdoc IOrderbook
     function withdrawIdleCapital(uint256 amount) external {
         address account = msg.sender;
         _amountZeroCheck(amount);
@@ -158,11 +178,33 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
 
         borrowAmount = filled.divWad(_leverage);
 
-        _userMatchedOrders[account].push(
+        MatchOrder[] storage matches = _userMatchedOrders[account];
+        uint256 len = matches.length;
+
+        for (uint256 i = 0; i != len; ++i) {
+            if (matches[i].borrower == msg.sender) {
+                matches[i].lCollateral += uint128(filled);
+                matches[i].bCollateral += uint128(borrowAmount);
+                emit OrderFilled(account, msg.sender, _leverage, filled);
+                return (filled, borrowAmount);
+            }
+        }
+
+        matches.push(
             MatchOrder({lCollateral: uint128(filled), bCollateral: uint128(borrowAmount), borrower: msg.sender})
         );
-
         emit OrderFilled(account, msg.sender, _leverage, filled);
+    }
+
+    /**
+     * @notice Opens an order for the lender
+     * @param lender The address of the lender
+     * @param amount The amount of underlying assets to open the order
+     */
+    function _openOrder(address lender, uint256 amount) internal {
+        _openDepth += amount;
+        _userOpenOrder[lender] += amount;
+        emit OrderCreated(lender, amount);
     }
 
     /**
@@ -200,6 +242,12 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         uint256 length = matches.length;
         for (uint256 i = length; i != 0; --i) {
             uint256 index = i - 1;
+
+            // If the match order is already closed by the borrower, skip it
+            if (matches[index].borrower == address(0)) {
+                matches.pop();
+                continue;
+            }
 
             if (remainingAmount != 0) {
                 uint256 amountToRemove = Math.min(remainingAmount, matches[index].lCollateral);
