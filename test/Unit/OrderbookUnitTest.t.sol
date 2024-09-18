@@ -91,14 +91,14 @@ contract OrderbookUnitTest is BloomTestSetup {
 
         // Validate pool state
         assertEq(bloomPool.matchedDepth(), 0);
-        assertEq(bloomPool.openDepth(), 0);
+        assertEq(bloomPool.openDepth(), 100e6);
         assertEq(postCancelMatchedOrder.bCollateral, 0);
         assertEq(postCancelMatchedOrder.lCollateral, 0);
         assertEq(postCancelMatchedOrder.borrower, address(0));
 
         // Validate balances
         assertEq(stable.balanceOf(borrower), borrowerPreBalance + matchedOrder.bCollateral);
-        assertEq(stable.balanceOf(alice), alicePreBalance + matchedOrder.lCollateral);
+        assertEq(stable.balanceOf(alice), alicePreBalance);
     }
 
     function testKillBorrowerOrderNoMatch() public {

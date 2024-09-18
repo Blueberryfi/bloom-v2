@@ -134,7 +134,7 @@ interface IOrderbook {
 
     /**
      * @notice Allows borrowers to cancel their match orders and withdraw their underlying assets.
-     * @dev When borrower cancels a match order, funds are returned to both the lender and borrower.
+     * @dev When borrower cancels a match order, funds are returned borrower and the matched order is converted to an open order.
      * @dev There is no idle capital conversion in this operation.
      * @dev Borrower's must kill the entirity of the match order.
      * @param lender The address of the lender to cancel the match order for.

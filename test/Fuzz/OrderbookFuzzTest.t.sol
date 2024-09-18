@@ -304,6 +304,11 @@ contract OrderbookFuzzTest is BloomTestSetup {
         vm.expectEmit(true, true, false, true);
         emit IOrderbook.MatchOrderKilled(alice, borrower, orderSize);
         bloomPool.killBorrowerMatch(alice);
+
+        assertEq(bloomPool.openDepth(), orderSize);
+        assertEq(bloomPool.matchedDepth(), 0);
+        assertEq(bloomPool.amountOpen(alice), orderSize);
+        assertEq(bloomPool.amountMatched(alice), 0);
     }
 
     function testFuzz_FillOrderWithIdleCapital(uint256 orderSize) public {

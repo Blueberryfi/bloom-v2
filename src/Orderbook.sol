@@ -61,11 +61,7 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     /// @inheritdoc IOrderbook
     function lendOrder(uint256 amount) external {
         _amountZeroCheck(amount);
-
-        _openDepth += amount;
-        _userOpenOrder[msg.sender] += amount;
-
-        emit OrderCreated(msg.sender, amount);
+        _openOrder(msg.sender, amount);
         IERC20(_asset).safeTransferFrom(msg.sender, address(this), amount);
     }
 
@@ -129,7 +125,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
                 borrowerReturn = uint256(matches[i].bCollateral);
                 // Zero out the match order to preserve the array's order
                 matches[i] = MatchOrder({lCollateral: 0, bCollateral: 0, borrower: address(0)});
+                // Decrement the matched depth and open move the lenders collateral to an open order.
                 _matchedDepth -= lenderReturn;
+                _openOrder(lender, lenderReturn);
                 break;
             }
         }
@@ -137,7 +135,6 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         require(lenderReturn != 0, Errors.MatchOrderNotFound());
         emit MatchOrderKilled(lender, msg.sender, lenderReturn);
 
-        IERC20(_asset).safeTransfer(lender, lenderReturn);
         IERC20(_asset).safeTransfer(msg.sender, borrowerReturn);
     }
 
@@ -197,6 +194,17 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
             MatchOrder({lCollateral: uint128(filled), bCollateral: uint128(borrowAmount), borrower: msg.sender})
         );
         emit OrderFilled(account, msg.sender, _leverage, filled);
+    }
+
+    /**
+     * @notice Opens an order for the lender
+     * @param lender The address of the lender
+     * @param amount The amount of underlying assets to open the order
+     */
+    function _openOrder(address lender, uint256 amount) internal {
+        _openDepth += amount;
+        _userOpenOrder[lender] += amount;
+        emit OrderCreated(lender, amount);
     }
 
     /**
