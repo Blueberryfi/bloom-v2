@@ -115,25 +115,25 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
     }
 
     /// @inheritdoc IOrderbook
-    function killBorrowerMatch(address lender) external returns (uint256 lenderReturn, uint256 borrowerReturn) {
+    function killBorrowerMatch(address lender) external returns (uint256 lenderAmount, uint256 borrowerReturn) {
         MatchOrder[] storage matches = _userMatchedOrders[lender];
 
         uint256 len = matches.length;
         for (uint256 i = 0; i != len; ++i) {
             if (matches[i].borrower == msg.sender) {
-                lenderReturn = uint256(matches[i].lCollateral);
+                lenderAmount = uint256(matches[i].lCollateral);
                 borrowerReturn = uint256(matches[i].bCollateral);
                 // Zero out the match order to preserve the array's order
                 matches[i] = MatchOrder({lCollateral: 0, bCollateral: 0, borrower: address(0)});
                 // Decrement the matched depth and open move the lenders collateral to an open order.
-                _matchedDepth -= lenderReturn;
-                _openOrder(lender, lenderReturn);
+                _matchedDepth -= lenderAmount;
+                _openOrder(lender, lenderAmount);
                 break;
             }
         }
 
-        require(lenderReturn != 0, Errors.MatchOrderNotFound());
-        emit MatchOrderKilled(lender, msg.sender, lenderReturn);
+        require(lenderAmount != 0, Errors.MatchOrderNotFound());
+        emit MatchOrderKilled(lender, msg.sender, lenderAmount);
 
         IERC20(_asset).safeTransfer(msg.sender, borrowerReturn);
     }

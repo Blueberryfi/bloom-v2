@@ -138,10 +138,10 @@ interface IOrderbook {
      * @dev There is no idle capital conversion in this operation.
      * @dev Borrower's must kill the entirity of the match order.
      * @param lender The address of the lender to cancel the match order for.
-     * @return lenderReturn The total amount of underlying assets removed from the order.
+     * @return lenderAmount The total amount of underlying assets converted from the match order to an open order.
      * @return borrowerReturn The total amount of underlying assets removed from the order.
      */
-    function killBorrowerMatch(address lender) external returns (uint256 lenderReturn, uint256 borrowerReturn);
+    function killBorrowerMatch(address lender) external returns (uint256 lenderAmount, uint256 borrowerReturn);
 
     /// @notice Returns the current leverage value for the borrower scaled to 1e4.
     function leverage() external view returns (uint256);
