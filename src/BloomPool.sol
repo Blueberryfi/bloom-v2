@@ -272,7 +272,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
      * @dev Only the owner can call this function.
      * @param rwaPriceFeed_ The address of the price feed for the RWA token.
      */
-    function setPriceFeed(address rwaPriceFeed_) public onlyOwner {
+    function setPriceFeed(address rwaPriceFeed_) external onlyOwner {
         _setPriceFeed(rwaPriceFeed_);
     }
 
