@@ -54,7 +54,7 @@ abstract contract BloomTestSetup is Test {
         priceFeed.setLatestRoundData(1, 110e8, 0, block.timestamp, 1);
 
         bloomPool = new BloomPool(
-            address(stable), address(billToken), address(priceFeed), initialLeverage, initialSpread, owner
+            address(stable), address(billToken), address(priceFeed), 1 days, initialLeverage, initialSpread, owner
         );
         vm.stopPrank();
 

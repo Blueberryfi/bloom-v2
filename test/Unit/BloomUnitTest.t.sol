@@ -28,18 +28,19 @@ contract BloomUnitTest is BloomTestSetup {
 
     function testDeployment() public {
         BloomPool newPool = new BloomPool(
-            address(stable), address(billToken), address(priceFeed), initialLeverage, initialSpread, owner
+            address(stable), address(billToken), address(priceFeed), 1 days, initialLeverage, initialSpread, owner
         );
         assertNotEq(address(newPool), address(0));
-        assertEq(newPool.rwaPriceFeed(), address(priceFeed));
+        assertEq(newPool.rwaPriceFeed().priceFeed, address(priceFeed));
         assertEq(newPool.futureMaturity(), 180 days);
     }
 
     function testSetPriceFeedNonOwner() public {
         /// Expect revert if not owner calls
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
-        bloomPool.setPriceFeed(address(1));
-        assertEq(bloomPool.rwaPriceFeed(), address(priceFeed));
+        bloomPool.setPriceFeed(address(1), 2 days);
+        assertEq(bloomPool.rwaPriceFeed().priceFeed, address(priceFeed));
+        assertEq(bloomPool.rwaPriceFeed().updateInterval, 1 days);
     }
 
     function testSetMaturityNonOwner() public {
@@ -53,7 +54,7 @@ contract BloomUnitTest is BloomTestSetup {
         vm.startPrank(owner);
         vm.expectEmit(false, false, false, true);
         emit IBloomPool.RwaPriceFeedSet(address(priceFeed));
-        bloomPool.setPriceFeed(address(priceFeed));
+        bloomPool.setPriceFeed(address(priceFeed), 1 days);
     }
 
     function testSetPriceFeedRevert() public {
@@ -61,17 +62,17 @@ contract BloomUnitTest is BloomTestSetup {
         // Revert if price is 0
         priceFeed.setLatestRoundData(0, 0, 0, 0, 0);
         vm.expectRevert(Errors.InvalidPriceFeed.selector);
-        bloomPool.setPriceFeed(address(priceFeed));
+        bloomPool.setPriceFeed(address(priceFeed), 1 days);
 
         // Revert if feed hasnt been updated in a while
         priceFeed.setLatestRoundData(0, 1, 0, 0, 0);
         vm.expectRevert(Errors.OutOfDate.selector);
-        bloomPool.setPriceFeed(address(priceFeed));
+        bloomPool.setPriceFeed(address(priceFeed), 1 days);
 
         // Revert if feed hasnt has the wrong round id
         priceFeed.setLatestRoundData(1, 1, 0, 0, 0);
         vm.expectRevert(Errors.OutOfDate.selector);
-        bloomPool.setPriceFeed(address(priceFeed));
+        bloomPool.setPriceFeed(address(priceFeed), 1 days);
     }
 
     function testSetMaturitySuccess() public {
