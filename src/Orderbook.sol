@@ -181,10 +181,21 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
 
         borrowAmount = filled.divWad(_leverage);
 
-        _userMatchedOrders[account].push(
+        MatchOrder[] storage matches = _userMatchedOrders[account];
+        uint256 len = matches.length;
+
+        for (uint256 i = 0; i != len; ++i) {
+            if (matches[i].borrower == msg.sender) {
+                matches[i].lCollateral += uint128(filled);
+                matches[i].bCollateral += uint128(borrowAmount);
+                emit OrderFilled(account, msg.sender, _leverage, filled);
+                return (filled, borrowAmount);
+            }
+        }
+
+        matches.push(
             MatchOrder({lCollateral: uint128(filled), bCollateral: uint128(borrowAmount), borrower: msg.sender})
         );
-
         emit OrderFilled(account, msg.sender, _leverage, filled);
     }
 
