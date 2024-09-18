@@ -71,6 +71,53 @@ contract OrderbookUnitTest is BloomTestSetup {
         bloomPool.fillOrder(alice, 100e6);
     }
 
+    function testKillBorrowerOrder() public {
+        _createLendOrder(alice, 100e6);
+
+        vm.startPrank(owner);
+        bloomPool.whitelistBorrower(borrower, true);
+
+        _fillOrder(alice, 100e6);
+
+        uint256 borrowerPreBalance = stable.balanceOf(borrower);
+        uint256 alicePreBalance = stable.balanceOf(alice);
+
+        IOrderbook.MatchOrder memory matchedOrder = bloomPool.matchedOrder(alice, 0);
+
+        vm.startPrank(borrower);
+        bloomPool.killBorrowerMatch(alice);
+
+        IOrderbook.MatchOrder memory postCancelMatchedOrder = bloomPool.matchedOrder(alice, 0);
+
+        // Validate pool state
+        assertEq(bloomPool.matchedDepth(), 0);
+        assertEq(bloomPool.openDepth(), 0);
+        assertEq(postCancelMatchedOrder.bCollateral, 0);
+        assertEq(postCancelMatchedOrder.lCollateral, 0);
+        assertEq(postCancelMatchedOrder.borrower, address(0));
+
+        // Validate balances
+        assertEq(stable.balanceOf(borrower), borrowerPreBalance + matchedOrder.bCollateral);
+        assertEq(stable.balanceOf(alice), alicePreBalance + matchedOrder.lCollateral);
+    }
+
+    function testKillBorrowerOrderNoMatch() public {
+        _createLendOrder(alice, 100e6);
+
+        vm.startPrank(owner);
+        bloomPool.whitelistBorrower(borrower, true);
+
+        _fillOrder(alice, 100e6);
+
+        // Kill the match order
+        vm.startPrank(borrower);
+        bloomPool.killBorrowerMatch(alice);
+
+        // Try to kill the match order again to steal funds
+        vm.expectRevert(Errors.MatchOrderNotFound.selector);
+        bloomPool.killBorrowerMatch(alice);
+    }
+
     function testMaxWithdrawIdleCapital() public {
         _createLendOrder(alice, 100e6);
 
