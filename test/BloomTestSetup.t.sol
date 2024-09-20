@@ -107,4 +107,44 @@ abstract contract BloomTestSetup is Test {
         priceFeed.setLatestRoundData(roundId, int256(price), block.timestamp, block.timestamp, roundId);
         vm.stopPrank();
     }
+
+    function _fillOrderWithCustomBorrower(address lender, uint256 amount, address customBorrower)
+        internal
+        returns (uint256 borrowAmount)
+    {
+        borrowAmount = amount.divWad(initialLeverage);
+        stable.mint(customBorrower, borrowAmount);
+        vm.startPrank(customBorrower);
+        stable.approve(address(bloomPool), borrowAmount);
+        bloomPool.fillOrder(lender, amount);
+        vm.stopPrank();
+    }
+
+    function _swapInWithCustomMarketMaker(uint256 stableAmount, address customMarketMaker)
+        internal
+        returns (uint256 id, uint256 assetAmount)
+    {
+        (, int256 answer,,,) = priceFeed.latestRoundData();
+        uint256 answerScaled = uint256(answer) * (10 ** (18 - priceFeed.decimals()));
+        uint256 rwaAmount = (stableAmount * (10 ** (18 - stable.decimals()))).divWadUp(answerScaled);
+
+        vm.startPrank(customMarketMaker);
+        billToken.mint(customMarketMaker, rwaAmount);
+        billToken.approve(address(bloomPool), rwaAmount);
+        return bloomPool.swapIn(lenders, stableAmount);
+    }
+
+    function _swapOutWithCustomMarketMaker(uint256 id, uint256 stableAmount, address customMarketMaker)
+        internal
+        returns (uint256 assetAmount)
+    {
+        (, int256 answer,,,) = priceFeed.latestRoundData();
+        uint256 answerScaled = uint256(answer) * (10 ** (18 - priceFeed.decimals()));
+        uint256 rwaAmount = (stableAmount * (10 ** (18 - stable.decimals()))).divWadUp(answerScaled);
+
+        vm.startPrank(customMarketMaker);
+        stable.mint(customMarketMaker, stableAmount);
+        stable.approve(address(bloomPool), stableAmount);
+        return bloomPool.swapOut(id, rwaAmount);
+    }
 }
