@@ -237,8 +237,8 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             if (lenderReturn > assetAmount) {
                 lenderReturn = assetAmount;
                 uint256 accumulatedCollateral = _tbyLenderReturns[id] + lenderReturn;
-                uint256 remainingRwa = (collateral.rwaAmount - rwaAmount).mulWad(currentPrice);
-                uint256 totalCollateral = accumulatedCollateral + remainingRwa;
+                uint256 remainingAmount = (collateral.rwaAmount - rwaAmount).mulWad(currentPrice) / _assetScalingFactor;
+                uint256 totalCollateral = accumulatedCollateral + remainingAmount;
                 uint256 newRate = totalCollateral.divWad(_tby.totalSupply(id));
                 uint256 adjustedRate = _takeSpread(newRate);
                 rwaPrice.endPrice = uint128(adjustedRate.mulWad(rwaPrice.startPrice));
