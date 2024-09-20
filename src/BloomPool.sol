@@ -77,6 +77,9 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     /// @notice The default length of time that TBYs mature.
     uint256 constant DEFAULT_MATURITY = 180 days;
 
+    /// @notice The minimum percentage of RWA tokens that must be swapped out in a single `swapOut` call. (0.25% of total RWA collateral for the TBY)
+    uint256 constant MIN_SWAP_OUT_PERCENT = 0.0025e18;
+
     /*///////////////////////////////////////////////////////////////
                             Modifiers   
     //////////////////////////////////////////////////////////////*/
@@ -215,7 +218,8 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
         // Calculate the percentage of RWA tokens that are being currently swapped
         uint256 percentSwapped = rwaAmount.divWad(totalRwaCollateral);
-
+        require(percentSwapped >= MIN_SWAP_OUT_PERCENT, Errors.SwapOutTooSmall());
+        
         uint256 tbyTotalSupply = _tby.totalSupply(id);
         uint256 tbyAmount = percentSwapped != Math.WAD ? tbyTotalSupply.mulWadUp(percentSwapped) : tbyTotalSupply;
         require(tbyAmount > 0, Errors.ZeroAmount());
