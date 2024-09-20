@@ -19,7 +19,6 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {Orderbook} from "@bloom-v2/Orderbook.sol";
 import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
-import {console2} from "forge-std/console2.sol";
 
 /**
  * @title BloomPool
@@ -452,6 +451,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         borrowerFunds = remainingAmount - lenderFunds;
     }
 
+    /// @notice Takes removes the borrower's interest earned off the yield of the RWA token in order to calculate the TBY rate.
     function _takeSpread(uint256 rate) internal view returns (uint256) {
         if (rate > Math.WAD) {
             uint256 yield = rate - Math.WAD;

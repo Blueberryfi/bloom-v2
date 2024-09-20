@@ -18,8 +18,6 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
 
-import {console2} from "forge-std/console2.sol";
-
 contract BloomPoolFuzzTest is BloomTestSetup {
     using FpMath for uint256;
 
@@ -250,8 +248,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         // Validate Lender and Borrower returns
         uint256 tbyRate = bloomPool.getRate(0);
         uint256 tbyAmount = tby.totalSupply(0);
-        console2.log("tbyAmount", tbyAmount);
-        console2.log("tbyRate", tbyRate);
+
         uint256 expectedLenderReturns = tbyAmount.mulWad(tbyRate);
         uint256 expectedBorrowerReturns = amountNeeeded - expectedLenderReturns;
 
