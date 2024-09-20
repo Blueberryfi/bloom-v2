@@ -114,7 +114,8 @@ contract BloomUnitTest is BloomTestSetup {
         uint256 newRate = 115e8;
         _skipAndUpdatePrice(3 days, newRate, 1);
 
-        uint256 expectedRate = 115e18 * initialSpread / 110e18; // 110e18 is the initial rate
+        uint256 priceAppreciation = (uint256(newRate).divWad(110e8)) - FpMath.WAD;
+        uint256 expectedRate = FpMath.WAD + ((priceAppreciation).mulWad(initialSpread));
         assertEq(bloomPool.getRate(0), expectedRate);
     }
 
@@ -262,5 +263,41 @@ contract BloomUnitTest is BloomTestSetup {
         assertEq(bloomPool.tbyMaturity(0).end, expectedTby0Maturity);
         // Validate that the maturity of the second TBY is 10 days
         assertEq(bloomPool.tbyMaturity(1).end, block.timestamp + 10 days);
+    }
+
+    function testSwapOutExtraCall() external {
+        vm.startPrank(owner);
+        bloomPool.whitelistMarketMaker(marketMaker, true);
+        bloomPool.whitelistBorrower(borrower, true);
+
+        uint256 lendamt = 1000e6;
+        _createLendOrder(alice, lendamt);
+        _createLendOrder(bob, lendamt);
+
+        _fillOrder(alice, lendamt);
+        _fillOrder(bob, lendamt);
+
+        lenders.push(alice);
+        lenders.push(bob);
+
+        uint256 swapamt = 20000e18;
+        _swapIn(swapamt);
+        vm.stopPrank();
+
+        assert(stable.balanceOf(address(bloomPool)) == 0);
+        assert(stable.balanceOf(address(marketMaker)) == 2040000000);
+        assert(billToken.balanceOf(address(bloomPool)) == 18545454545454545455);
+        assert(tby.balanceOf(address(bloomPool), 0) == 0);
+        uint256 DEFAULT_MATURITY = 180 days;
+
+        skip(DEFAULT_MATURITY);
+
+        vm.startPrank(owner);
+        priceFeed.setLatestRoundData(1, 110e8, 0, block.timestamp, 1);
+
+        _swapOut(0, 300e6);
+
+        // sending additional tokens but can be any value.
+        _swapOut(0, 2700e6);
     }
 }

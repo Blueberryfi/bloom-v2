@@ -18,6 +18,8 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
 
+import {console2} from "forge-std/console2.sol";
+
 contract BloomPoolFuzzTest is BloomTestSetup {
     using FpMath for uint256;
 
@@ -246,10 +248,11 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         assertEq(rwaPricing.endPrice, 112e18);
 
         // Validate Lender and Borrower returns
-        uint256 tbyTotalSupply = tby.totalSupply(0);
         uint256 tbyRate = bloomPool.getRate(0);
-
-        uint256 expectedLenderReturns = tbyTotalSupply.mulWad(tbyRate);
+        uint256 tbyAmount = tby.totalSupply(0);
+        console2.log("tbyAmount", tbyAmount);
+        console2.log("tbyRate", tbyRate);
+        uint256 expectedLenderReturns = tbyAmount.mulWad(tbyRate);
         uint256 expectedBorrowerReturns = amountNeeeded - expectedLenderReturns;
 
         assertEq(bloomPool.lenderReturns(0), expectedLenderReturns);
