@@ -246,10 +246,10 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         assertEq(rwaPricing.endPrice, 112e18);
 
         // Validate Lender and Borrower returns
-        uint256 tbyTotalSupply = tby.totalSupply(0);
         uint256 tbyRate = bloomPool.getRate(0);
+        uint256 tbyAmount = tby.totalSupply(0);
 
-        uint256 expectedLenderReturns = tbyTotalSupply.mulWad(tbyRate);
+        uint256 expectedLenderReturns = tbyAmount.mulWad(tbyRate);
         uint256 expectedBorrowerReturns = amountNeeeded - expectedLenderReturns;
 
         assertEq(bloomPool.lenderReturns(0), expectedLenderReturns);

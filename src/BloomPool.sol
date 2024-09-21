@@ -77,6 +77,9 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     /// @notice The default length of time that TBYs mature.
     uint256 constant DEFAULT_MATURITY = 180 days;
 
+    /// @notice The minimum percentage of RWA tokens that must be swapped out in a single `swapOut` call. (0.25% of total RWA collateral for the TBY)
+    uint256 constant MIN_SWAP_OUT_PERCENT = 0.0025e18;
+
     /*///////////////////////////////////////////////////////////////
                             Modifiers   
     //////////////////////////////////////////////////////////////*/
@@ -203,25 +206,29 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         TbyCollateral storage collateral = _idToCollateral[id];
         uint256 currentPrice = _rwaPrice();
 
+        // Cannot swap out more RWA tokens than is allocated for the TBY.
+        rwaAmount = Math.min(rwaAmount, collateral.rwaAmount);
+        uint256 totalRwaCollateral = collateral.rwaAmount;
+
         if (rwaPrice.endPrice == 0) {
-            _tbyIdToRwaPrice[id].endPrice = uint128(currentPrice);
+            rwaPrice.endPrice = uint128(currentPrice);
+        } else {
+            totalRwaCollateral += uint256(collateral.assetAmount * _assetScalingFactor).divWad(rwaPrice.endPrice);
         }
 
         // Calculate the percentage of RWA tokens that are being currently swapped
-        uint256 percentSwapped = rwaAmount.divWad(collateral.rwaAmount);
-        if (percentSwapped > Math.WAD) {
-            percentSwapped = Math.WAD;
-            rwaAmount = collateral.rwaAmount;
-        }
+        uint256 percentSwapped = rwaAmount.divWad(totalRwaCollateral);
+        uint256 percentOfLiquidity = rwaAmount.divWad(collateral.rwaAmount);
+        require(percentOfLiquidity >= MIN_SWAP_OUT_PERCENT, Errors.SwapOutTooSmall());
 
         uint256 tbyTotalSupply = _tby.totalSupply(id);
         uint256 tbyAmount = percentSwapped != Math.WAD ? tbyTotalSupply.mulWadUp(percentSwapped) : tbyTotalSupply;
         require(tbyAmount > 0, Errors.ZeroAmount());
 
         // Calculate the amount of assets that will be swapped out.
-        assetAmount = uint256(currentPrice).mulWad(rwaAmount) / (10 ** ((18 - _rwaDecimals) + (18 - _assetDecimals)));
-
+        assetAmount = uint256(currentPrice).mulWadUp(rwaAmount) / (10 ** ((18 - _rwaDecimals) + (18 - _assetDecimals)));
         uint256 lenderReturn = getRate(id).mulWad(tbyAmount);
+
         // If the price has dropped between the end of the TBY's maturity date and when the market maker swap finishes,
         //     only the borrower's returns will be negatively impacted, unless the rate of the drop in price is so large,
         //     that the lender's returns are less than their implied rate. In this case, the rate will be adjusted to
@@ -231,9 +238,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             if (lenderReturn > assetAmount) {
                 lenderReturn = assetAmount;
                 uint256 accumulatedCollateral = _tbyLenderReturns[id] + lenderReturn;
-                uint256 newRate = accumulatedCollateral.divWad(_tby.totalSupply(id));
-                uint256 adjustedEndPrice = (newRate * rwaPrice.startPrice) / _spread;
-                rwaPrice.endPrice = uint128(adjustedEndPrice);
+                uint256 remainingAmount = (collateral.rwaAmount - rwaAmount).mulWad(currentPrice) / _assetScalingFactor;
+                uint256 totalCollateral = accumulatedCollateral + remainingAmount;
+                uint256 newRate = totalCollateral.divWad(_tby.totalSupply(id));
+                uint256 adjustedRate = _takeSpread(newRate);
+                rwaPrice.endPrice = uint128(adjustedRate.mulWad(rwaPrice.startPrice));
             }
         }
         uint256 borrowerReturn = assetAmount - lenderReturn;
@@ -447,6 +456,15 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         borrowerFunds = remainingAmount - lenderFunds;
     }
 
+    /// @notice Takes removes the borrower's interest earned off the yield of the RWA token in order to calculate the TBY rate.
+    function _takeSpread(uint256 rate) internal view returns (uint256) {
+        if (rate > Math.WAD) {
+            uint256 yield = rate - Math.WAD;
+            return Math.WAD + yield.mulWad(_spread);
+        }
+        return rate;
+    }
+
     /*///////////////////////////////////////////////////////////////
                             View Functions    
     //////////////////////////////////////////////////////////////*/
@@ -459,25 +477,15 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         if (rwaPrice.startPrice == 0) {
             revert Errors.InvalidTby();
         }
-
-        uint256 time = block.timestamp;
         // If the TBY has not started accruing interest, return 1e18.
-        if (time <= maturity.start) {
+        if (block.timestamp <= maturity.start) {
             return Math.WAD;
         }
 
-        // If the TBY has matured, and is eligible for redemption, calculate price based on the end price.
-        if (time >= maturity.end && rwaPrice.endPrice != 0) {
-            return ((rwaPrice.endPrice * _spread) / rwaPrice.startPrice);
-        }
-
-        // If the TBY has matured, and is not-eligible for redemption due to market maker delay,
-        //     calculate price based on the current price of the RWA token via the price feed.
-        uint256 price = (_rwaPrice() * _spread) / rwaPrice.startPrice;
-
-        // The rate should never be less than 1e18. Rate will not accrue until both the lender and borrower can start
-        //     accruing interest.
-        return price > Math.WAD ? price : Math.WAD;
+        // If the TBY has matured, and is eligible for redemption, calculate the rate based on the end price.
+        uint256 price = rwaPrice.endPrice != 0 ? rwaPrice.endPrice : _rwaPrice();
+        uint256 rate = (uint256(price).divWad(uint256(rwaPrice.startPrice)));
+        return _takeSpread(rate);
     }
 
     /// @inheritdoc IBloomPool

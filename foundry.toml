@@ -19,8 +19,12 @@ gas_reports_ignore = ["MockERC20", "BloomTestSetup"]
 [rpc_endpoints]
 arbitrum = "${ARB_RPC_URL}"
 arbitrum_sepolia = "${ARB_SEPOLIA_RPC_URL}"
+base = "${BASE_RPC_URL}"
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 anvil = "${ANVIL_RPC_URL}"
 
 [etherscan]
 arbitrum = { key = "${ARBITRUM_API_KEY}" }
 arbitrum_sepolia = { key = "${ARBITRUM_API_KEY}" }
+base = { key = "${BASESCAN_API_KEY}" }
+base_sepolia = { key = "${BASESCAN_API_KEY}" }

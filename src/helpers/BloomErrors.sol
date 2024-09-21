@@ -30,6 +30,9 @@ library BloomErrors {
     /// @notice Emitted when getting the price of a Tby that does not exist.
     error InvalidTby();
 
+    /// @notice Emitted when a market maker tries to swap out too small of a percentage of RWA tokens.
+    error SwapOutTooSmall();
+
     /*///////////////////////////////////////////////////////////////
                             Orderbook Errors    
     //////////////////////////////////////////////////////////////*/
