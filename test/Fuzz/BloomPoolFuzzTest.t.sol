@@ -236,7 +236,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         IBloomPool.TbyCollateral memory collateral = bloomPool.tbyCollateral(0);
         assertEq(collateral.assetAmount, amountNeeeded);
         assertEq(collateral.currentRwaAmount, 0);
-        assertEq(collateral.startRwaAmount, rwaBalance);
+        assertEq(collateral.originalRwaAmount, rwaBalance);
 
         IBloomPool.TbyMaturity memory maturity = bloomPool.tbyMaturity(0);
         assertEq(maturity.start, startingTime);
@@ -320,7 +320,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         IBloomPool.TbyCollateral memory collateral = bloomPool.tbyCollateral(0);
         assertEq(collateral.assetAmount, 0);
         assertEq(collateral.currentRwaAmount, 0);
-        assertEq(collateral.startRwaAmount, rwaBalance);
+        assertEq(collateral.originalRwaAmount, rwaBalance);
     }
 
     function testFuzz_SwapOutAndRedeemWithPriceDrop(uint256 amount) public {

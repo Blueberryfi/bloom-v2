@@ -183,7 +183,6 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
         // Update the collateral for the TBY id.
         collateral.currentRwaAmount += uint128(rwaAmount);
-        collateral.startRwaAmount = collateral.currentRwaAmount;
 
         emit MarketMakerSwappedIn(id, msg.sender, rwaAmount, amountSwapped);
 
@@ -214,8 +213,13 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             rwaPrice.endPrice = uint128(currentPrice);
         }
 
+        // If this is the first swap out for the TBY, we need to set the originalRwaAmount to the currentRwaAmount.
+        if (collateral.originalRwaAmount == 0) {
+            collateral.originalRwaAmount = collateral.currentRwaAmount;
+        }
+
         // Calculate the percentage of RWA tokens that are being currently swapped
-        uint256 percentSwapped = rwaAmount.divWad(collateral.startRwaAmount);
+        uint256 percentSwapped = rwaAmount.divWad(collateral.originalRwaAmount);
         uint256 percentOfLiquidity = rwaAmount.divWad(collateral.currentRwaAmount);
         require(percentOfLiquidity >= MIN_SWAP_OUT_PERCENT, Errors.SwapOutTooSmall());
 
