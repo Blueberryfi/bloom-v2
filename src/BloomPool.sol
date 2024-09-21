@@ -179,10 +179,10 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         require(rwaAmount > 0, Errors.ZeroAmount());
 
         // Initalize or normalize the starting price of the TBY.
-        _setStartPrice(id, currentPrice, rwaAmount, collateral.rwaAmount);
+        _setStartPrice(id, currentPrice, rwaAmount, collateral.currentRwaAmount);
 
         // Update the collateral for the TBY id.
-        collateral.rwaAmount += uint128(rwaAmount);
+        collateral.currentRwaAmount += uint128(rwaAmount);
 
         emit MarketMakerSwappedIn(id, msg.sender, rwaAmount, amountSwapped);
 
@@ -207,18 +207,20 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         uint256 currentPrice = _rwaPrice();
 
         // Cannot swap out more RWA tokens than is allocated for the TBY.
-        rwaAmount = Math.min(rwaAmount, collateral.rwaAmount);
-        uint256 totalRwaCollateral = collateral.rwaAmount;
+        rwaAmount = Math.min(rwaAmount, collateral.currentRwaAmount);
 
         if (rwaPrice.endPrice == 0) {
             rwaPrice.endPrice = uint128(currentPrice);
-        } else {
-            totalRwaCollateral += uint256(collateral.assetAmount * _assetScalingFactor).divWad(rwaPrice.endPrice);
+        }
+
+        // If this is the first swap out for the TBY, we need to set the originalRwaAmount to the currentRwaAmount.
+        if (collateral.originalRwaAmount == 0) {
+            collateral.originalRwaAmount = collateral.currentRwaAmount;
         }
 
         // Calculate the percentage of RWA tokens that are being currently swapped
-        uint256 percentSwapped = rwaAmount.divWad(totalRwaCollateral);
-        uint256 percentOfLiquidity = rwaAmount.divWad(collateral.rwaAmount);
+        uint256 percentSwapped = rwaAmount.divWad(collateral.originalRwaAmount);
+        uint256 percentOfLiquidity = rwaAmount.divWad(collateral.currentRwaAmount);
         require(percentOfLiquidity >= MIN_SWAP_OUT_PERCENT, Errors.SwapOutTooSmall());
 
         uint256 tbyTotalSupply = _tby.totalSupply(id);
@@ -238,7 +240,8 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             if (lenderReturn > assetAmount) {
                 lenderReturn = assetAmount;
                 uint256 accumulatedCollateral = _tbyLenderReturns[id] + lenderReturn;
-                uint256 remainingAmount = (collateral.rwaAmount - rwaAmount).mulWad(currentPrice) / _assetScalingFactor;
+                uint256 remainingAmount =
+                    (collateral.currentRwaAmount - rwaAmount).mulWad(currentPrice) / _assetScalingFactor;
                 uint256 totalCollateral = accumulatedCollateral + remainingAmount;
                 uint256 newRate = totalCollateral.divWad(_tby.totalSupply(id));
                 uint256 adjustedRate = _takeSpread(newRate);
@@ -252,10 +255,10 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         _tbyLenderReturns[id] += lenderReturn;
 
         // Update the collateral for the TBY id.
-        collateral.rwaAmount -= uint128(rwaAmount);
+        collateral.currentRwaAmount -= uint128(rwaAmount);
         collateral.assetAmount += uint128(assetAmount);
 
-        if (collateral.rwaAmount == 0) {
+        if (collateral.currentRwaAmount == 0) {
             _isTbyRedeemable[id] = true;
         }
 
