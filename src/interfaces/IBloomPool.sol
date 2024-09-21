@@ -24,11 +24,13 @@ interface IBloomPool is IOrderbook, IPoolStorage {
     /**
      * @notice Struct representing the collateral backed by a TBY.
      * @param assetAmount The amount of underlying asset collateral.
-     * @param rwaAmount The amount of rwa asset collateral.
+     * @param startRwaAmount The amount of rwa asset collateral at the start of the TBY.
+     * @param currentRwaAmount The amount of rwa asset collateral at the current time.
      */
     struct TbyCollateral {
         uint128 assetAmount;
-        uint128 rwaAmount;
+        uint128 startRwaAmount;
+        uint128 currentRwaAmount;
     }
 
     /**

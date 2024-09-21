@@ -171,7 +171,7 @@ contract BloomUnitTest is BloomTestSetup {
         assertEq(billToken.balanceOf(address(bloomPool)), expectedRwa);
 
         IBloomPool.TbyCollateral memory startCollateral = bloomPool.tbyCollateral(0);
-        assertEq(startCollateral.rwaAmount, expectedRwa);
+        assertEq(startCollateral.currentRwaAmount, expectedRwa);
         assertEq(startCollateral.assetAmount, 0);
 
         _skipAndUpdatePrice(180 days, 110e8, 2);
@@ -184,7 +184,7 @@ contract BloomUnitTest is BloomTestSetup {
         assertEq(billToken.balanceOf(marketMaker), expectedRwa);
 
         IBloomPool.TbyCollateral memory endCollateral = bloomPool.tbyCollateral(0);
-        assertEq(endCollateral.rwaAmount, 0);
+        assertEq(endCollateral.currentRwaAmount, 0);
         assertEq(endCollateral.assetAmount, totalStableCollateral);
         assertEq(bloomPool.isTbyRedeemable(0), true);
     }
@@ -357,7 +357,7 @@ contract BloomUnitTest is BloomTestSetup {
         asset_amount = _swapOutWithCustomMarketMaker(0, 500e6, marketMaker);
 
         _swapOutWithCustomMarketMaker(0, 500, marketMaker2);
-        assertEq(bloomPool.tbyCollateral(0).rwaAmount, 0);
+        assertEq(bloomPool.tbyCollateral(0).currentRwaAmount, 0);
         assertEq(bloomPool.isTbyRedeemable(0), true);
     }
 }

@@ -64,7 +64,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         assertEq(bloomPool.matchedOrderCount(alice), 0);
 
         assertEq(bloomPool.tbyCollateral(0).assetAmount, 0);
-        assertEq(bloomPool.tbyCollateral(0).rwaAmount, rwaAmount);
+        assertEq(bloomPool.tbyCollateral(0).currentRwaAmount, rwaAmount);
 
         assertEq(bloomPool.tbyRwaPricing(0).startPrice, answerScaled);
         assertEq(bloomPool.tbyRwaPricing(0).endPrice, 0);
@@ -194,7 +194,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         assertEq(bloomPool.matchedDepth(), expectedMatchedDepth);
 
         assertEq(bloomPool.tbyCollateral(0).assetAmount, 0);
-        assertEq(bloomPool.tbyCollateral(0).rwaAmount, rwaAmount);
+        assertEq(bloomPool.tbyCollateral(0).currentRwaAmount, rwaAmount);
 
         assertApproxEqRelDecimal(bloomPool.borrowerAmount(borrower, 0), expectedBorrowerAmount, 0.9999e18, 6);
         assertApproxEqRelDecimal(bloomPool.totalBorrowed(0), expectedBorrowerAmount, 0.9999e18, 6);
@@ -235,7 +235,8 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         // Validate TBY State
         IBloomPool.TbyCollateral memory collateral = bloomPool.tbyCollateral(0);
         assertEq(collateral.assetAmount, amountNeeeded);
-        assertEq(collateral.rwaAmount, 0);
+        assertEq(collateral.currentRwaAmount, 0);
+        assertEq(collateral.startRwaAmount, rwaBalance);
 
         IBloomPool.TbyMaturity memory maturity = bloomPool.tbyMaturity(0);
         assertEq(maturity.start, startingTime);
@@ -318,7 +319,8 @@ contract BloomPoolFuzzTest is BloomTestSetup {
 
         IBloomPool.TbyCollateral memory collateral = bloomPool.tbyCollateral(0);
         assertEq(collateral.assetAmount, 0);
-        assertEq(collateral.rwaAmount, 0);
+        assertEq(collateral.currentRwaAmount, 0);
+        assertEq(collateral.startRwaAmount, rwaBalance);
     }
 
     function testFuzz_SwapOutAndRedeemWithPriceDrop(uint256 amount) public {
@@ -363,7 +365,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         uint256 expectedLenderReturns = tbyTotalSupply.mulWad(tbyRate);
         uint256 expectedBorrowerReturns = collateral.assetAmount - expectedLenderReturns;
 
-        assertEq(collateral.rwaAmount, 0);
+        assertEq(collateral.currentRwaAmount, 0);
 
         assertApproxEqRelDecimal(bloomPool.lenderReturns(0), expectedLenderReturns, 0.0001e18, 6);
         assertApproxEqRelDecimal(bloomPool.borrowerReturns(0), expectedBorrowerReturns, 0.0001e18, 6);
@@ -393,7 +395,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         uint256 rwaBalance = billToken.balanceOf(address(bloomPool));
 
         assertEq(bloomPool.tbyCollateral(id).assetAmount, 0);
-        assertEq(bloomPool.tbyCollateral(id).rwaAmount, rwaBalance);
+        assertEq(bloomPool.tbyCollateral(id).currentRwaAmount, rwaBalance);
 
         assertEq(bloomPool.tbyRwaPricing(id).startPrice, 110e18);
         assertEq(bloomPool.tbyRwaPricing(id).endPrice, 0);
@@ -410,7 +412,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         assertEq(assetAmount2, stableBalance - assetAmount);
 
         assertEq(bloomPool.tbyCollateral(id).assetAmount, 0);
-        assertEq(bloomPool.tbyCollateral(id).rwaAmount, rwaBalance2);
+        assertEq(bloomPool.tbyCollateral(id).currentRwaAmount, rwaBalance2);
 
         uint256 totalValue = rwaBalance.mulWad(110e18) + (rwaBalance2 - rwaBalance).mulWad(110.8e18);
         uint256 normalizedPrice = totalValue.divWad(rwaBalance2);
