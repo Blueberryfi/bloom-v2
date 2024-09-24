@@ -439,7 +439,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
             totalCollateral += _fillOrder(alice, amount);
             totalCollateral += _fillOrder(bob, amount);
             totalCollateral += _fillOrder(rando, amount);
-            
+
             // Create new TBYs
             _swapIn(totalCollateral);
 
