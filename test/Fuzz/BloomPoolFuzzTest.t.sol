@@ -420,4 +420,60 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         assertEq(bloomPool.tbyRwaPricing(id).startPrice, normalizedPrice);
         assertEq(bloomPool.tbyRwaPricing(id).endPrice, 0);
     }
+
+    function testFuzz_MultipleTbyRedemptions(uint256 tbys, uint256 amount) public {
+        tbys = bound(tbys, 1, 5);
+        amount = bound(amount, 1e6, 100_000_000e6);
+
+        lenders.push(alice);
+        lenders.push(bob);
+        lenders.push(rando);
+
+        uint256 endingBalance = amount;
+        for (uint256 i = 0; i < tbys; i++) {
+            _createLendOrder(alice, amount);
+            _createLendOrder(bob, amount);
+            _createLendOrder(rando, amount);
+
+            uint256 totalCollateral = amount + amount + amount;
+            totalCollateral += _fillOrder(alice, amount);
+            totalCollateral += _fillOrder(bob, amount);
+            totalCollateral += _fillOrder(rando, amount);
+            
+            // Create new TBYs
+            _swapIn(totalCollateral);
+
+            assertEq(bloomPool.lastMintedId(), i);
+            assertEq(tby.balanceOf(alice, i), amount);
+            assertEq(tby.balanceOf(bob, i), amount);
+            assertEq(tby.balanceOf(rando, i), amount);
+
+            // mature TBYs but keep the price the same
+            _skipAndUpdatePrice(180 days, 110e8, 2);
+            _swapOut(i, totalCollateral);
+
+            // redeem all of the TBYs
+            vm.startPrank(alice);
+            bloomPool.redeemLender(i, amount);
+            vm.stopPrank();
+
+            vm.startPrank(bob);
+            bloomPool.redeemLender(i, amount);
+            vm.stopPrank();
+
+            vm.startPrank(rando);
+            bloomPool.redeemLender(i, amount);
+            vm.stopPrank();
+
+            assertEq(tby.balanceOf(alice, i), 0);
+            assertEq(tby.balanceOf(bob, i), 0);
+            assertEq(tby.balanceOf(rando, i), 0);
+
+            assertEq(stable.balanceOf(alice), endingBalance);
+            assertEq(stable.balanceOf(bob), endingBalance);
+            assertEq(stable.balanceOf(rando), endingBalance);
+
+            endingBalance += amount;
+        }
+    }
 }
