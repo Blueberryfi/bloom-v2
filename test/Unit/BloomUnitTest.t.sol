@@ -355,4 +355,38 @@ contract BloomUnitTest is BloomTestSetup {
         assertEq(bloomPool.tbyCollateral(0).currentRwaAmount, 0);
         assertEq(bloomPool.isTbyRedeemable(0), true);
     }
+
+    function testTbyRateWithDifferentSpread() public {
+        vm.startPrank(owner);
+        bloomPool.whitelistBorrower(borrower, true);
+        bloomPool.whitelistMarketMaker(marketMaker, true);
+
+        _createLendOrder(alice, 110e6);
+        _fillOrder(alice, 110e6);
+        lenders.push(alice);
+        _swapIn(1e18);
+
+        // Skip 3 days
+        _skipAndUpdatePrice(3 days, 110e8, 1);
+        vm.startPrank(owner);
+        // Update spread to 1%
+        bloomPool.setSpread(0.99e18);
+
+        // Create a new TBY
+        _createLendOrder(alice, 110e6);
+        _fillOrder(alice, 110e6);
+        _swapIn(1e18);
+
+        // Skip and update price feed
+        _skipAndUpdatePrice(3 days, 112e8, 1);
+
+        // Validate that the rates are not the same
+        assertNotEq(bloomPool.getRate(0), bloomPool.getRate(1));
+
+        IBloomPool.RwaPrice memory rwaPrice0 = bloomPool.tbyRwaPricing(0);
+        assertEq(rwaPrice0.spread, initialSpread);
+
+        IBloomPool.RwaPrice memory rwaPrice1 = bloomPool.tbyRwaPricing(1);
+        assertEq(rwaPrice1.spread, 0.99e18);
+    }
 }
