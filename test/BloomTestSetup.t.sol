@@ -147,4 +147,13 @@ abstract contract BloomTestSetup is Test {
         stable.approve(address(bloomPool), stableAmount);
         return bloomPool.swapOut(id, rwaAmount);
     }
+
+    /// @notice Checks if a is equal to b with a 2 wei buffer. If A is less than b the call will return false.
+    function _isEqualWithDust(uint256 a, uint256 b) internal pure returns (bool) {
+        if (a >= b) {
+            return a - b <= 1e2;
+        } else {
+            return false;
+        }
+    }
 }
