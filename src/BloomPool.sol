@@ -345,10 +345,10 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
      */
     function _normalizePrice(uint256 startPrice, uint256 currentPrice, uint256 amount, uint256 existingCollateral)
         private
-        view
+        pure
         returns (uint128)
     {
-        uint256 totalValue = (existingCollateral.mulWad(startPrice) + amount.mulWad(currentPrice)) / _rwaScalingFactor;
+        uint256 totalValue = (existingCollateral.mulWad(startPrice) + amount.mulWad(currentPrice));
         uint256 totalCollateral = existingCollateral + amount;
         return uint128(totalValue.divWad(totalCollateral));
     }
