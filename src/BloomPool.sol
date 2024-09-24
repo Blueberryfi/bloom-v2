@@ -386,6 +386,12 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
             uint256 index = i - 1;
 
             if (remainingAmount != 0) {
+                // If the match order is already closed by the borrower, skip it
+                if (matches[index].borrower == address(0)) {
+                    matches.pop();
+                    continue;
+                }
+
                 (uint256 lenderFunds, uint256 borrowerFunds) =
                     _calculateRemovalAmounts(remainingAmount, matches[index].lCollateral, matches[index].bCollateral);
                 uint256 amountToRemove = lenderFunds + borrowerFunds;
