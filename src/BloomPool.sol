@@ -356,13 +356,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     /// @notice Returns the current price of the RWA token.
     function _rwaPrice() private view returns (uint256) {
         RwaPriceFeed memory priceFeed = _rwaPriceFeed;
-        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
-            AggregatorV3Interface(priceFeed.priceFeed).latestRoundData();
+        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(priceFeed.priceFeed).latestRoundData();
 
         // Validate the latest round data from the price feed.
         require(answer > 0, Errors.InvalidPriceFeed());
         require(updatedAt >= block.timestamp - priceFeed.updateInterval, Errors.OutOfDate());
-        require(answeredInRound >= roundId, Errors.OutOfDate());
 
         uint256 scaler = 10 ** (18 - priceFeed.decimals);
         return uint256(answer) * scaler;
@@ -427,13 +425,11 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     /// @notice Logic to set the price feed for the RWA token.
     function _setPriceFeed(address rwaPriceFeed_, uint64 priceFeedUpdateInterval_) internal {
         require(priceFeedUpdateInterval_ != 0, Errors.ZeroAmount());
-        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
-            AggregatorV3Interface(rwaPriceFeed_).latestRoundData();
+        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(rwaPriceFeed_).latestRoundData();
 
         // Validate the latest round data from the price feed.
         require(answer > 0, Errors.InvalidPriceFeed());
         require(updatedAt >= block.timestamp - priceFeedUpdateInterval_, Errors.OutOfDate());
-        require(answeredInRound >= roundId, Errors.OutOfDate());
 
         // Set the price feed for the RWA token.
         _rwaPriceFeed = RwaPriceFeed({

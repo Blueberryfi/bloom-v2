@@ -68,11 +68,6 @@ contract BloomUnitTest is BloomTestSetup {
         priceFeed.setLatestRoundData(0, 1, 0, 0, 0);
         vm.expectRevert(Errors.OutOfDate.selector);
         bloomPool.setPriceFeed(address(priceFeed), 1 days);
-
-        // Revert if feed hasnt has the wrong round id
-        priceFeed.setLatestRoundData(1, 1, 0, 0, 0);
-        vm.expectRevert(Errors.OutOfDate.selector);
-        bloomPool.setPriceFeed(address(priceFeed), 1 days);
     }
 
     function testSetMaturitySuccess() public {
