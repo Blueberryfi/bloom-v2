@@ -7,7 +7,7 @@
 ██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
 ╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
 */
-pragma solidity 0.8.26;
+pragma solidity 0.8.27;
 
 import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";

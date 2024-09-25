@@ -7,7 +7,7 @@
 ██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
 ╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
 */
-pragma solidity 0.8.26;
+pragma solidity 0.8.27;
 
 import {IOrderbook} from "@bloom-v2/interfaces/IOrderbook.sol";
 import {IPoolStorage} from "@bloom-v2/interfaces/IPoolStorage.sol";

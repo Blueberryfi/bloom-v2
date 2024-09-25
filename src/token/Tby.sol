@@ -7,7 +7,7 @@
 ██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
 ╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
 */
-pragma solidity 0.8.26;
+pragma solidity 0.8.27;
 
 import {ERC1155} from "@solady/tokens/ERC1155.sol";
 import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
