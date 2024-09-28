@@ -551,7 +551,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         assertEq(bloomPool.amountOpen(alice), amount / 2);
         assertEq(bloomPool.amountMatched(alice), amount / 2);
         IOrderbook.MatchOrder memory borrower2Order = bloomPool.matchedOrder(alice, 1);
-        assertEq(borrower2Order.borrower, address(0));
+        assertEq(borrower2Order.borrower, borrower2);
         assertEq(borrower2Order.lCollateral, 0);
         assertEq(borrower2Order.bCollateral, 0);
 

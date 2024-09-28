@@ -387,7 +387,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
 
             if (remainingAmount != 0) {
                 // If the match order is already closed by the borrower, skip it
-                if (matches[index].borrower == address(0)) {
+                if (matches[index].lCollateral == 0) {
                     matches.pop();
                     continue;
                 }
