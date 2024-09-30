@@ -407,6 +407,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
                     matches.pop();
                 } else {
                     matches[index].lCollateral -= uint128(lenderFunds);
+                    matches[index].bCollateral -= uint128(borrowerFunds);
                 }
             } else {
                 break;
