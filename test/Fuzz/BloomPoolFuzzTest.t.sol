@@ -323,7 +323,7 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         assertEq(collateral.originalRwaAmount, rwaBalance);
     }
 
-    function testFuzz_SwapOutAndRedeemWithPriceDrop(uint256 amount) public {
+    function testFuzz_SwapOutAndRedeemWithPriceDropAfterMaturity(uint256 amount) public {
         amount = bound(amount, 1e6, 100_000_000_000e6);
         _createLendOrder(alice, amount);
         _fillOrder(alice, amount);
@@ -358,6 +358,54 @@ contract BloomPoolFuzzTest is BloomTestSetup {
 
         assertEq(bloomPool.isTbyRedeemable(0), true);
 
+        IBloomPool.TbyCollateral memory collateral = bloomPool.tbyCollateral(0);
+
+        uint256 tbyTotalSupply = tby.totalSupply(0);
+        uint256 tbyRate = bloomPool.getRate(0);
+        uint256 expectedLenderReturns = tbyTotalSupply.mulWad(tbyRate);
+        uint256 expectedBorrowerReturns = collateral.assetAmount - expectedLenderReturns;
+
+        assertEq(collateral.currentRwaAmount, 0);
+
+        assertApproxEqRelDecimal(bloomPool.lenderReturns(0), expectedLenderReturns, 0.0001e18, 6);
+        assertApproxEqRelDecimal(bloomPool.borrowerReturns(0), expectedBorrowerReturns, 0.0001e18, 6);
+
+        // Complete the swaps
+        vm.startPrank(alice);
+        bloomPool.redeemLender(0, tby.balanceOf(alice, 0));
+        vm.stopPrank();
+
+        vm.startPrank(borrower);
+        bloomPool.redeemBorrower(0);
+        vm.stopPrank();
+
+        assertApproxEqRelDecimal(stable.balanceOf(alice), amount * tbyRate / 1e18, 0.0001e18, 6);
+    }
+
+    function testFuzz_SwapOutAndRedeemWithPriceDropBeforeMaturity(uint256 amount) public {
+        amount = bound(amount, 1e6, 100_000_000_000e6);
+        _createLendOrder(alice, amount);
+        _fillOrder(alice, amount);
+        lenders.push(alice);
+
+        uint256 stableBalance = stable.balanceOf(address(bloomPool));
+        _swapIn(stableBalance);
+
+        // Fast forward to the maturity of the TBY and decrease the price.
+        _skipAndUpdatePrice(180 days, 90e8, 2);
+
+        uint256 amountNeeeded = (stableBalance * 90e18) / 110e18;
+        uint256 rwaBalance = billToken.balanceOf(address(bloomPool));
+
+        vm.startPrank(marketMaker);
+        stable.mint(marketMaker, amountNeeeded);
+        stable.approve(address(bloomPool), amountNeeeded);
+
+        // Complete half of the needed swap
+        bloomPool.swapOut(0, rwaBalance);
+
+        // Validate that users cannot redeem their TBYs
+        assertEq(bloomPool.isTbyRedeemable(0), true);
         IBloomPool.TbyCollateral memory collateral = bloomPool.tbyCollateral(0);
 
         uint256 tbyTotalSupply = tby.totalSupply(0);
