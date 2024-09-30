@@ -94,7 +94,7 @@ contract OrderbookUnitTest is BloomTestSetup {
         assertEq(bloomPool.openDepth(), 100e6);
         assertEq(postCancelMatchedOrder.bCollateral, 0);
         assertEq(postCancelMatchedOrder.lCollateral, 0);
-        assertEq(postCancelMatchedOrder.borrower, address(0));
+        assertEq(postCancelMatchedOrder.borrower, borrower);
 
         // Validate balances
         assertEq(stable.balanceOf(borrower), borrowerPreBalance + matchedOrder.bCollateral);

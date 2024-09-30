@@ -123,8 +123,9 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
             if (matches[i].borrower == msg.sender) {
                 lenderAmount = uint256(matches[i].lCollateral);
                 borrowerReturn = uint256(matches[i].bCollateral);
-                // Zero out the match order to preserve the array's order
-                matches[i] = MatchOrder({lCollateral: 0, bCollateral: 0, borrower: address(0)});
+                // Zero out the collateral amounts of the match order to preserve the array's order
+                matches[i].lCollateral = 0;
+                matches[i].bCollateral = 0;
                 // Decrement the matched depth and open move the lenders collateral to an open order.
                 _matchedDepth -= lenderAmount;
                 _openOrder(lender, lenderAmount);
@@ -243,8 +244,8 @@ abstract contract Orderbook is IOrderbook, PoolStorage {
         for (uint256 i = length; i != 0; --i) {
             uint256 index = i - 1;
 
-            // If the match order is already closed by the borrower, skip it
-            if (matches[index].borrower == address(0)) {
+            // If the match order is already closed, remove it from the array
+            if (matches[index].lCollateral == 0) {
                 matches.pop();
                 continue;
             }

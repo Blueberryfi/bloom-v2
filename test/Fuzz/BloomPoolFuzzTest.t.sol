@@ -526,4 +526,44 @@ contract BloomPoolFuzzTest is BloomTestSetup {
         bloomPool.redeemBorrower(0);
         vm.stopPrank();
     }
+
+    function testFuzz_SwapOutWithTwoBorrowersAndOneCancels(uint256 amount) public {
+        amount = bound(amount, 1e6, 100_000_000e6);
+        vm.assume(amount % 2 == 0);
+
+        address borrower2 = makeAddr("borrower2");
+        bloomPool.whitelistBorrower(borrower2, true);
+
+        _createLendOrder(alice, amount);
+        lenders.push(alice);
+
+        uint256 totalCollateral = amount;
+        uint256 borrowAmount = _fillOrder(alice, amount / 2);
+        totalCollateral += borrowAmount;
+        totalCollateral += _fillOrderWithCustomBorrower(alice, amount / 2, borrower2);
+
+        // Borrower2 cancels order
+        vm.startPrank(borrower2);
+        bloomPool.killBorrowerMatch(alice);
+        vm.stopPrank();
+
+        // Validate that the order is cancelled
+        assertEq(bloomPool.amountOpen(alice), amount / 2);
+        assertEq(bloomPool.amountMatched(alice), amount / 2);
+        IOrderbook.MatchOrder memory borrower2Order = bloomPool.matchedOrder(alice, 1);
+        assertEq(borrower2Order.borrower, borrower2);
+        assertEq(borrower2Order.lCollateral, 0);
+        assertEq(borrower2Order.bCollateral, 0);
+
+        _swapIn(totalCollateral);
+        _skipAndUpdatePrice(180 days, 115e8, 2);
+
+        assertEq(tby.balanceOf(alice, 0), amount / 2);
+
+        // Check borrower data
+        uint256 totalBorrowed = bloomPool.totalBorrowed(0);
+        assertEq(totalBorrowed, borrowAmount);
+        assertEq(bloomPool.borrowerAmount(borrower, 0), borrowAmount);
+        assertEq(bloomPool.borrowerAmount(borrower2, 0), 0);
+    }
 }
