@@ -246,7 +246,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
                     (collateral.currentRwaAmount - rwaAmount).mulWad(currentPrice) / _assetScalingFactor;
                 uint256 totalCollateral = accumulatedCollateral + remainingAmount;
                 uint256 newRate = totalCollateral.divWad(_tby.totalSupply(id));
-                uint256 adjustedRate = _takeSpread(newRate);
+                uint256 adjustedRate = _takeSpread(newRate, rwaPrice.spread);
                 rwaPrice.endPrice = uint128(adjustedRate.mulWad(rwaPrice.startPrice));
             }
         }
@@ -328,6 +328,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         uint256 startPrice = rwaPrice.startPrice;
         if (startPrice == 0) {
             rwaPrice.startPrice = uint128(currentPrice);
+            rwaPrice.spread = uint128(_spread);
         } else if (startPrice != currentPrice) {
             rwaPrice.startPrice = uint128(_normalizePrice(startPrice, currentPrice, rwaAmount, existingCollateral));
         }
@@ -463,11 +464,16 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         borrowerFunds = remainingAmount - lenderFunds;
     }
 
-    /// @notice Takes removes the borrower's interest earned off the yield of the RWA token in order to calculate the TBY rate.
-    function _takeSpread(uint256 rate) internal view returns (uint256) {
+    /**
+     * @notice Takes the spread for the TBY and removes the borrower's interest earned off the yield of the RWA token in order to calculate the TBY rate.
+     * @param rate The full rate of the TBY.
+     * @param tbySpread The cached spread for the TBY.
+     * @return The adjusted rate for the TBY that the lender will earn.
+     */
+    function _takeSpread(uint256 rate, uint128 tbySpread) internal pure returns (uint256) {
         if (rate > Math.WAD) {
             uint256 yield = rate - Math.WAD;
-            return Math.WAD + yield.mulWad(_spread);
+            return Math.WAD + yield.mulWad(tbySpread);
         }
         return rate;
     }
@@ -492,7 +498,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         // If the TBY has matured, and is eligible for redemption, calculate the rate based on the end price.
         uint256 price = rwaPrice.endPrice != 0 ? rwaPrice.endPrice : _rwaPrice();
         uint256 rate = (uint256(price).divWad(uint256(rwaPrice.startPrice)));
-        return _takeSpread(rate);
+        return _takeSpread(rate, rwaPrice.spread);
     }
 
     /// @inheritdoc IBloomPool
