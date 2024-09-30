@@ -396,7 +396,6 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
                     _calculateRemovalAmounts(remainingAmount, matches[index].lCollateral, matches[index].bCollateral);
                 uint256 amountToRemove = lenderFunds + borrowerFunds;
 
-                if (amountToRemove == 0) break;
                 remainingAmount -= amountToRemove;
 
                 _borrowerAmounts[matches[index].borrower][id] += borrowerFunds;
