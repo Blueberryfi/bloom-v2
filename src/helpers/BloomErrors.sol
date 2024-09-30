@@ -33,6 +33,9 @@ library BloomErrors {
     /// @notice Emitted when a market maker tries to swap out too small of a percentage of RWA tokens.
     error SwapOutTooSmall();
 
+    /// @notice Emitted when a borrower tries to redeem a TBY but the total borrowed for that TBY is zero.
+    error TotalBorrowedZero();
+
     /*///////////////////////////////////////////////////////////////
                             Orderbook Errors    
     //////////////////////////////////////////////////////////////*/

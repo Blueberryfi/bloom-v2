@@ -132,6 +132,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
     function redeemBorrower(uint256 id) external override isRedeemable(id) returns (uint256 reward) {
         uint256 totalBorrowAmount = _idToTotalBorrowed[id];
         uint256 borrowAmount = _borrowerAmounts[msg.sender][id];
+        require(totalBorrowAmount != 0, Errors.TotalBorrowedZero());
 
         reward = (_tbyBorrowerReturns[id] * borrowAmount) / totalBorrowAmount;
         require(reward > 0, Errors.ZeroRewards());
@@ -139,6 +140,7 @@ contract BloomPool is IBloomPool, Orderbook, ReentrancyGuard {
         _idToCollateral[id].assetAmount -= uint128(reward);
         _tbyBorrowerReturns[id] -= reward;
         _borrowerAmounts[msg.sender][id] -= borrowAmount;
+        _idToTotalBorrowed[id] -= borrowAmount;
 
         emit BorrowerRedeemed(msg.sender, id, reward);
         IERC20(_asset).safeTransfer(msg.sender, reward);

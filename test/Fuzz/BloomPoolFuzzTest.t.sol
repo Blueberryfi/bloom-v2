@@ -476,4 +476,54 @@ contract BloomPoolFuzzTest is BloomTestSetup {
             endingBalance += amount;
         }
     }
+
+    function testFuzz_RedemptionsWithMultipleBorrowers(uint256 amount) public {
+        amount = bound(amount, 1e6, 100_000_000e6);
+
+        address borrower2 = makeAddr("borrower2");
+        address borrower3 = makeAddr("borrower3");
+        bloomPool.whitelistBorrower(borrower2, true);
+        bloomPool.whitelistBorrower(borrower3, true);
+
+        _createLendOrder(alice, amount);
+        lenders.push(alice);
+
+        uint256 totalCollateral = amount;
+        totalCollateral += _fillOrder(alice, amount / 3);
+        totalCollateral += _fillOrderWithCustomBorrower(alice, amount / 3, borrower2);
+        totalCollateral += _fillOrderWithCustomBorrower(alice, amount / 3, borrower3);
+
+        _swapIn(totalCollateral);
+        _skipAndUpdatePrice(180 days, 115e8, 2);
+
+        uint256 stableNeeded = (amount * 3 * 115e18) / 110e18;
+
+        _swapOut(0, stableNeeded);
+
+        // Validate that all redemptions for borrowers are identical
+        uint256 expectedBorrowerRedemption = bloomPool.borrowerReturns(0) / 3;
+
+        vm.startPrank(borrower);
+        bloomPool.redeemBorrower(0);
+        vm.stopPrank();
+        assertEq(stable.balanceOf(borrower), expectedBorrowerRedemption);
+
+        vm.startPrank(borrower2);
+        bloomPool.redeemBorrower(0);
+        vm.stopPrank();
+        _isEqualWithDust(stable.balanceOf(borrower2), expectedBorrowerRedemption);
+
+        vm.startPrank(borrower3);
+        bloomPool.redeemBorrower(0);
+        vm.stopPrank();
+        _isEqualWithDust(stable.balanceOf(borrower3), expectedBorrowerRedemption);
+
+        assertEq(bloomPool.borrowerReturns(0), 0);
+
+        /// try to have borrower redeem twice
+        vm.startPrank(borrower);
+        vm.expectRevert(Errors.TotalBorrowedZero.selector);
+        bloomPool.redeemBorrower(0);
+        vm.stopPrank();
+    }
 }
