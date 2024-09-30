@@ -77,7 +77,7 @@ contract Tby is ITby, ERC1155 {
      */
     function burn(uint256 id, address account, uint256 amount) external onlyBloom {
         _totalSupply[id] -= amount;
-        _burn(account, 0, amount);
+        _burn(account, id, amount);
         emit Burn(account, id, amount);
     }
 
