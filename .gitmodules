@@ -1,3 +1,6 @@
 [submodule "lib/forge-std"]
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
+[submodule "dependencies/chainlink-local"]
+	path = dependencies/chainlink-local
+	url = https://github.com/smartcontractkit/chainlink-local
