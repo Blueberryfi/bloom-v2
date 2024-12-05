@@ -15,7 +15,6 @@ contract DeployScript is Script {
     address internal constant usd = address(0x0000000000000000000000000000000000000348);
 
     function run() external {
-        vm.startBroadcast();
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
         address deployer = vm.addr(deployerPrivateKey);
