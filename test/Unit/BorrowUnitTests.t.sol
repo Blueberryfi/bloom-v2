@@ -135,8 +135,8 @@ contract BorrowUnitTests is BloomTestSetup {
         assertEq(mockBorrowModule.rwaPrice(0).endPrice, 105e18);
 
         // validate lender and borrower returns
-        assertEq(bloomPool.lenderReturns(0), expectedLenderReturn);
-        assertEq(bloomPool.borrowerReturns(0), expectedBorrowerReturn);
+        assertEq(mockBorrowModule.lenderReturns(0), expectedLenderReturn);
+        assertEq(mockBorrowModule.borrowerReturns(0), expectedBorrowerReturn);
 
         // Redeem the lender and borrowers funds
         vm.startPrank(alice);
@@ -148,8 +148,8 @@ contract BorrowUnitTests is BloomTestSetup {
         assertEq(stable.balanceOf(alice), expectedLenderReturn);
         assertEq(stable.balanceOf(borrower1), expectedBorrowerReturn);
 
-        assertEq(bloomPool.lenderReturns(0), 0);
-        assertEq(bloomPool.borrowerReturns(0), 0);
+        assertEq(mockBorrowModule.lenderReturns(0), 0);
+        assertEq(mockBorrowModule.borrowerReturns(0), 0);
     }
 
     function testMultipleBorrowerModules() public {
@@ -192,9 +192,9 @@ contract BorrowUnitTests is BloomTestSetup {
         assertEq(tby.balanceOf(alice, 1), 50e6);
         assertEq(tby.balanceOf(alice, 2), 50e6);
 
-        assertEq(bloomPool.borrowerAmount(borrower1, 0), 1e6);
-        assertEq(bloomPool.borrowerAmount(borrower1, 1), 1e6);
-        assertEq(bloomPool.borrowerAmount(borrower1, 2), 1e6);
+        assertEq(mockBorrowModule.borrowerAmount(borrower1, 0), 1e6);
+        assertEq(mockBorrowModule2.borrowerAmount(borrower1, 1), 1e6);
+        assertEq(mockBorrowModule3.borrowerAmount(borrower1, 2), 1e6);
 
         _skipAndUpdatePrice(1 days, 100e8, 1);
         vm.startPrank(owner);
@@ -206,7 +206,7 @@ contract BorrowUnitTests is BloomTestSetup {
 
         assertEq(tbyId, 1);
         assertEq(tby.balanceOf(alice, 1), 100e6);
-        assertEq(bloomPool.borrowerAmount(borrower1, 1), 2e6);
+        assertEq(mockBorrowModule2.borrowerAmount(borrower1, 1), 2e6);
 
         _skipAndUpdatePrice(2 days, 105e8, 2);
         vm.startPrank(owner);
@@ -218,6 +218,6 @@ contract BorrowUnitTests is BloomTestSetup {
 
         assertEq(tbyId, 3);
         assertEq(tby.balanceOf(alice, 3), 50e6);
-        assertEq(bloomPool.borrowerAmount(borrower1, 3), 1e6);
+        assertEq(mockBorrowModule.borrowerAmount(borrower1, 3), 1e6);
     }
 }

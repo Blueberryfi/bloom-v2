@@ -123,8 +123,8 @@ contract BloomPoolFuzzTests is BloomTestSetup {
         uint256 expectedLenderReturn = 104975 * 10 ** (stableDecimals - 3);
         uint256 expectedBorrowerReturn = 2125 * 10 ** (stableDecimals - 3);
 
-        assertEq(pool.lenderReturns(0), expectedLenderReturn);
-        assertEq(pool.borrowerReturns(0), expectedBorrowerReturn);
+        assertEq(borrowModule.lenderReturns(0), expectedLenderReturn);
+        assertEq(borrowModule.borrowerReturns(0), expectedBorrowerReturn);
 
         vm.startPrank(alice);
         Tby(newTby).setApprovalForAll(address(pool), true);

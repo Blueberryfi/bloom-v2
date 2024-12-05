@@ -54,8 +54,20 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
     /// @notice A mapping of the TBY id to the collateral that is backed by the tokens.
     mapping(uint256 => TbyCollateral) internal _idToCollateral;
 
+    /// @notice Mapping of borrowers to the amount they have borrowed for a given TBY id.
+    mapping(address => mapping(uint256 => uint256)) private _borrowerAmounts;
+
+    /// @notice Mapping of TBY ids to the total amount borrowed.
+    mapping(uint256 => uint256) private _idToTotalBorrowed;
+
     /// @notice A mapping of the TBY id to the maturity of the TBY.
     mapping(uint256 => TbyMaturity) internal _idToMaturity;
+
+    /// @notice Mapping of TBY ids to the lender returns.
+    mapping(uint256 => uint256) private _tbyLenderReturns;
+
+    /// @notice Mapping of TBY ids to the borrower returns.
+    mapping(uint256 => uint256) private _tbyBorrowerReturns;
 
     /*///////////////////////////////////////////////////////////////
                         Constants & Immutables
@@ -151,7 +163,7 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBorrowModule
-    function borrow(address borrower, uint256 amount)
+    function borrow(uint256 tbyId, address borrower, uint256 amount)
         external
         payable
         override
@@ -166,7 +178,11 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
         uint256 rwaAmount = _bloomOracle.getQuote(totalCollateral, address(_asset), address(_rwa));
         rwaAmount = _purchaseRwa(borrower, totalCollateral, rwaAmount);
 
-        TbyCollateral storage collateral = _idToCollateral[_lastMintedId];
+        if (tbyId != _lastMintedId) {
+            _lastMintedId = tbyId;
+        }
+
+        TbyCollateral storage collateral = _idToCollateral[tbyId];
         collateral.rwaAmount += uint128(rwaAmount);
 
         uint256 assetDecimals = _assetDecimals;
@@ -175,7 +191,10 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
         uint256 rwaPriceFixedPoint = assetDecimals > rwaDecimals
             ? (totalCollateral / (10 ** (assetDecimals - rwaDecimals))).divWad(rwaAmount)
             : (totalCollateral * (10 ** (rwaDecimals - assetDecimals))).divWad(rwaAmount);
-        _setStartPrice(_lastMintedId, rwaPriceFixedPoint, rwaAmount, collateral.rwaAmount);
+        _setStartPrice(tbyId, rwaPriceFixedPoint, rwaAmount, collateral.rwaAmount);
+
+        _borrowerAmounts[borrower][tbyId] += bCollateral;
+        _idToTotalBorrowed[tbyId] += bCollateral;
     }
 
     /// @inheritdoc IBorrowModule
@@ -183,18 +202,18 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
         external
         override
         onlyBloomPool
-        returns (uint256 lenderReturn, uint256 borrowerReturn)
+        returns (uint256 rwaAmount, uint256 assetAmount, uint256 endRwaCollateral, uint256 endAssetCollateral)
     {
         require(_idToMaturity[tbyId].end <= block.timestamp, Errors.TBYNotMatured());
 
-        uint256 rwaAmount = _getRwaSwapAmount(tbyId);
+        rwaAmount = _getRwaSwapAmount(tbyId);
         require(rwaAmount > 0, Errors.ZeroAmount());
 
         TbyCollateral storage collateral = _idToCollateral[tbyId];
         // Cannot swap out more RWA tokens than is allocated for the TBY.
         rwaAmount = FpMath.min(rwaAmount, collateral.rwaAmount);
 
-        uint256 assetAmount = _repayRwa(rwaAmount);
+        assetAmount = _repayRwa(rwaAmount);
 
         collateral.rwaAmount -= uint128(rwaAmount);
         collateral.assetAmount += uint128(assetAmount);
@@ -204,28 +223,57 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
 
             assetAmount = collateral.assetAmount;
             uint256 tbyAmount = _tby.totalSupply(tbyId);
-            lenderReturn = getRate(tbyId).mulWad(tbyAmount);
+            uint256 rate = getRate(tbyId);
+            uint256 lenderReturn = rate.mulWad(tbyAmount);
 
             if (lenderReturn > assetAmount) {
-                uint256 newRate = assetAmount.divWad(tbyAmount);
-                uint256 adjustedRate = _takeSpread(newRate, rwaPrice_.spread);
-                rwaPrice_.endPrice = uint128(adjustedRate.mulWad(rwaPrice_.startPrice));
-                lenderReturn = adjustedRate.mulWad(tbyAmount);
+                rate = assetAmount.divWad(tbyAmount);
+                rwaPrice_.endPrice = uint128(rate.mulWad(rwaPrice_.startPrice));
+                lenderReturn = getRate(tbyId).mulWad(tbyAmount);
             } else {
-                rwaPrice_.endPrice = uint128(
-                    _bloomOracle.getQuote(_ONE_RWA, address(_rwa), address(_asset))
-                        * (10 ** (18 - IERC20Metadata(address(_asset)).decimals()))
-                );
+                rwaPrice_.endPrice = uint128(_bloomOracle.getQuote(1e18, address(_rwa), address(_asset)) * 1e12);
             }
 
-            borrowerReturn = assetAmount - lenderReturn;
+            _tbyLenderReturns[tbyId] = lenderReturn;
+            _tbyBorrowerReturns[tbyId] = assetAmount - lenderReturn;
         }
+        return (rwaAmount, assetAmount, collateral.rwaAmount, collateral.assetAmount);
     }
 
     /// @inheritdoc IBorrowModule
-    function transferCollateral(uint256 tbyId, uint256 amount, address recipient) external override onlyBloomPool {
-        _idToCollateral[tbyId].assetAmount -= uint128(amount);
-        IERC20(_asset).safeTransfer(recipient, amount);
+    function withdrawLender(uint256 tbyId, address lender, uint256 amount)
+        external
+        override
+        onlyBloomPool
+        returns (uint256 reward)
+    {
+        uint256 totalSupply = _tby.totalSupply(tbyId);
+        reward = (_tbyLenderReturns[tbyId] * amount) / totalSupply;
+        require(reward > 0, Errors.ZeroRewards());
+        _tbyLenderReturns[tbyId] -= reward;
+
+        _transferCollateral(tbyId, lender, reward);
+    }
+
+    /// @inheritdoc IBorrowModule
+    function withdrawBorrower(uint256 tbyId, address borrower)
+        external
+        override
+        onlyBloomPool
+        returns (uint256 reward)
+    {
+        uint256 totalBorrowAmount = _idToTotalBorrowed[tbyId];
+        uint256 borrowAmount = _borrowerAmounts[borrower][tbyId];
+        require(totalBorrowAmount != 0, Errors.TotalBorrowedZero());
+
+        reward = (_tbyBorrowerReturns[tbyId] * borrowAmount) / totalBorrowAmount;
+        require(reward > 0, Errors.ZeroRewards());
+
+        _tbyBorrowerReturns[tbyId] -= reward;
+        _borrowerAmounts[borrower][tbyId] -= borrowAmount;
+        _idToTotalBorrowed[tbyId] -= borrowAmount;
+
+        _transferCollateral(tbyId, borrower, reward);
     }
 
     /// @inheritdoc IBorrowModule
@@ -375,6 +423,17 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
         return amount + bCollateral;
     }
 
+    /**
+     * @notice Transfers the collateral to the recipient & updates the collateral accounting state variable.
+     * @param tbyId The id of the TBY to transfer the collateral for.
+     * @param recipient The address of the recipient to transfer the collateral to.
+     * @param amount The amount of collateral to transfer.
+     */
+    function _transferCollateral(uint256 tbyId, address recipient, uint256 amount) internal {
+        _idToCollateral[tbyId].assetAmount -= uint128(amount);
+        _asset.safeTransfer(recipient, amount);
+    }
+
     /*///////////////////////////////////////////////////////////////
                             View Functions    
     //////////////////////////////////////////////////////////////*/
@@ -467,8 +526,28 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
     }
 
     /// @inheritdoc IBorrowModule
+    function borrowerAmount(address account, uint256 id) external view override returns (uint256) {
+        return _borrowerAmounts[account][id];
+    }
+
+    /// @inheritdoc IBorrowModule
+    function totalBorrowed(uint256 id) external view override returns (uint256) {
+        return _idToTotalBorrowed[id];
+    }
+
+    /// @inheritdoc IBorrowModule
     function tbyMaturity(uint256 id) external view override returns (TbyMaturity memory) {
         return _idToMaturity[id];
+    }
+
+    /// @inheritdoc IBorrowModule
+    function lenderReturns(uint256 id) external view override returns (uint256) {
+        return _tbyLenderReturns[id];
+    }
+
+    /// @inheritdoc IBorrowModule
+    function borrowerReturns(uint256 id) external view override returns (uint256) {
+        return _tbyBorrowerReturns[id];
     }
 
     /*///////////////////////////////////////////////////////////////

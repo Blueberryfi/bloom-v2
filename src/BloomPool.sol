@@ -51,18 +51,6 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
     /// @notice Mapping of TBY ids to their corresponding borrow module.
     mapping(uint256 => address) private _tbyModule;
 
-    /// @notice Mapping of borrowers to the amount they have borrowed for a given TBY id.
-    mapping(address => mapping(uint256 => uint256)) private _borrowerAmounts;
-
-    /// @notice Mapping of TBY ids to the total amount borrowed.
-    mapping(uint256 => uint256) private _idToTotalBorrowed;
-
-    /// @notice Mapping of TBY ids to the lender returns.
-    mapping(uint256 => uint256) private _tbyLenderReturns;
-
-    /// @notice Mapping of TBY ids to the borrower returns.
-    mapping(uint256 => uint256) private _tbyBorrowerReturns;
-
     /*///////////////////////////////////////////////////////////////
                         Constants & Immutables
     //////////////////////////////////////////////////////////////*/
@@ -137,55 +125,31 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
         }
 
         IERC20(_asset).forceApprove(module, lCollateral);
-        bCollateral = IBorrowModule(module).borrow(msg.sender, lCollateral);
-        _borrowerAmounts[msg.sender][tbyId] += bCollateral;
-        _idToTotalBorrowed[tbyId] += bCollateral;
+        bCollateral = IBorrowModule(module).borrow(tbyId, msg.sender, lCollateral);
+        emit Borrowed(msg.sender, tbyId, lCollateral, bCollateral);
     }
 
     /// @inheritdoc IBloomPool
     function repay(uint256 tbyId) external override nonReentrant {
         address module = _tbyModule[tbyId];
         require(module != address(0), Errors.InvalidTby());
-        (uint256 lenderReturn, uint256 borrowerReturn) = IBorrowModule(module).repay(tbyId);
-
-        _tbyLenderReturns[tbyId] += lenderReturn;
-        _tbyBorrowerReturns[tbyId] += borrowerReturn;
+        (uint256 rwaAmount, uint256 assetAmount, uint256 endRwaCollateral, uint256 endAssetCollateral) =
+            IBorrowModule(module).repay(tbyId);
+        emit Repaid(tbyId, msg.sender, rwaAmount, assetAmount, endRwaCollateral, endAssetCollateral);
     }
 
     /// @inheritdoc IBloomPool
     function redeemLender(uint256 tbyId, uint256 amount) external override returns (uint256 reward) {
         require(_tby.balanceOf(msg.sender, tbyId) >= amount, Errors.InsufficientBalance());
-
-        uint256 totalSupply = _tby.totalSupply(tbyId);
-        reward = (_tbyLenderReturns[tbyId] * amount) / totalSupply;
-        require(reward > 0, Errors.ZeroRewards());
-
-        _tbyLenderReturns[tbyId] -= reward;
+        reward = IBorrowModule(_tbyModule[tbyId]).withdrawLender(tbyId, msg.sender, amount);
         _tby.burn(tbyId, msg.sender, amount);
-
         emit LenderRedeemed(msg.sender, tbyId, reward);
-
-        IBorrowModule module = IBorrowModule(_tbyModule[tbyId]);
-        module.transferCollateral(tbyId, reward, msg.sender); // Send tokens to the lender
     }
 
     /// @inheritdoc IBloomPool
     function redeemBorrower(uint256 tbyId) external override returns (uint256 reward) {
-        uint256 totalBorrowAmount = _idToTotalBorrowed[tbyId];
-        uint256 borrowAmount = _borrowerAmounts[msg.sender][tbyId];
-        require(totalBorrowAmount != 0, Errors.TotalBorrowedZero());
-
-        reward = (_tbyBorrowerReturns[tbyId] * borrowAmount) / totalBorrowAmount;
-        require(reward > 0, Errors.ZeroRewards());
-
-        _tbyBorrowerReturns[tbyId] -= reward;
-        _borrowerAmounts[msg.sender][tbyId] -= borrowAmount;
-        _idToTotalBorrowed[tbyId] -= borrowAmount;
-
+        reward = IBorrowModule(_tbyModule[tbyId]).withdrawBorrower(tbyId, msg.sender);
         emit BorrowerRedeemed(msg.sender, tbyId, reward);
-
-        IBorrowModule module = IBorrowModule(_tbyModule[tbyId]);
-        module.transferCollateral(tbyId, reward, msg.sender); // Send tokens to the borrower
     }
 
     /// @inheritdoc IBloomPool
@@ -256,6 +220,7 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
 
         _userOpenOrder[account] = orderDepth;
         _tby.mint(tbyId, account, lCollateral);
+        emit OrderFilled(account, msg.sender, lCollateral);
     }
 
     /**
@@ -332,26 +297,6 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
     /// @inheritdoc IBloomPool
     function tbyModule(uint256 id) external view override returns (address) {
         return _tbyModule[id];
-    }
-
-    /// @inheritdoc IBloomPool
-    function borrowerAmount(address account, uint256 id) external view override returns (uint256) {
-        return _borrowerAmounts[account][id];
-    }
-
-    /// @inheritdoc IBloomPool
-    function totalBorrowed(uint256 id) external view override returns (uint256) {
-        return _idToTotalBorrowed[id];
-    }
-
-    /// @inheritdoc IBloomPool
-    function lenderReturns(uint256 tbyId) external view override returns (uint256) {
-        return _tbyLenderReturns[tbyId];
-    }
-
-    /// @inheritdoc IBloomPool
-    function borrowerReturns(uint256 tbyId) external view override returns (uint256) {
-        return _tbyBorrowerReturns[tbyId];
     }
 
     /*///////////////////////////////////////////////////////////////

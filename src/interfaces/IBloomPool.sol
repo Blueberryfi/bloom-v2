@@ -11,7 +11,7 @@ pragma solidity 0.8.27;
 
 /**
  * @title IBloomPool
- * @notice Interface for Bloom V2's BloomPool
+ * @notice Interface for Bloom V2's Pool
  */
 interface IBloomPool {
     /*///////////////////////////////////////////////////////////////
@@ -45,10 +45,9 @@ interface IBloomPool {
      * @notice Emitted when a borrower fills a lend order.
      * @param account The address of the user whos order was feeled.
      * @param borrower The address of the borrower who filled the order.
-     * @param leverage The leverage amount for the borrower at the time the order was matched.
      * @param amount The amount of underlying assets filled in the order.
      */
-    event OrderFilled(address indexed account, address indexed borrower, uint256 leverage, uint256 amount);
+    event OrderFilled(address indexed account, address indexed borrower, uint256 amount);
 
     /**
      * @notice Emitted when a user kills a lend order.
@@ -56,6 +55,33 @@ interface IBloomPool {
      * @param amount The amount of underlying assets returned to the user.
      */
     event OpenOrderKilled(address indexed account, uint256 amount);
+
+    /**
+     * @notice Emitted when a borrower borrows from a borrow module.
+     * @param borrower The address of the borrower who borrowed.
+     * @param tbyId The id of the TBY that was borrowed.
+     * @param lCollateral The amount of lender collateral borrowed.
+     * @param bCollateral The amount of borrower collateral posted to execute the transaction.
+     */
+    event Borrowed(address indexed borrower, uint256 indexed tbyId, uint256 lCollateral, uint256 bCollateral);
+
+    /**
+     * @notice Emitted when a borrower repays a TBY.
+     * @param tbyId The id of the TBY that was repaid.
+     * @param account The address of the account that repaid the loan.
+     * @param rwaAmount The amount of RWA assets repaid.
+     * @param assetAmount The amount of underlying assets received after repaying the RWA.
+     * @param endRwaCollateral The amount of RWA collateral backed by the TBY after repaying the RWA.
+     * @param endAssetCollateral The amount of underlying asset collateral backed by the TBY after repaying the RWA.
+     */
+    event Repaid(
+        uint256 indexed tbyId,
+        address indexed account,
+        uint256 rwaAmount,
+        uint256 assetAmount,
+        uint256 endRwaCollateral,
+        uint256 endAssetCollateral
+    );
 
     /**
      * @notice Emitted when a Lender redeems their share of rewards from a TBY.
@@ -165,16 +191,4 @@ interface IBloomPool {
 
     /// @notice Returns the address of the borrowModule for a given TBY id.
     function tbyModule(uint256 id) external view returns (address);
-
-    /// @notice Returns the total amount of assets a borrower has contributed to for a given Tby ID.
-    function borrowerAmount(address account, uint256 id) external view returns (uint256);
-
-    /// @notice Returns the total amount of assets all the borrowers have contributed to for a given Tby ID.
-    function totalBorrowed(uint256 id) external view returns (uint256);
-
-    /// @notice Returns the total amount of assets currently available for lender's to redeem for a given Tby ID.
-    function lenderReturns(uint256 id) external view returns (uint256);
-
-    /// @notice Returns the total amount of assets currently available for borrower's to redeem for a given Tby ID.
-    function borrowerReturns(uint256 id) external view returns (uint256);
 }

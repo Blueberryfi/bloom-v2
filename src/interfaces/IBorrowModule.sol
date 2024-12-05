@@ -75,30 +75,45 @@ interface IBorrowModule {
      * @notice Borrow lenders funds to purchase an RWA asset.
      * @dev This function will be called by the BloomPool.
      * @dev Module Developers need to implement the _purchaseRwa function in order to allow this function to execute successfully.
+     * @param tbyId The id of the TBY to borrow the assets for.
      * @param borrower The address of the borrower.
      * @param amount The amount of underlying assets that the borrower is borrowering.
      * @return bCollateral Total amount of borrower collateral posted to execute the transaction.
      */
-    function borrow(address borrower, uint256 amount) external payable returns (uint256 bCollateral);
+    function borrow(uint256 tbyId, address borrower, uint256 amount) external payable returns (uint256 bCollateral);
 
     /**
      * @notice Repays ALL borrowers borrowed funds + collateral.
      * @dev This function will be called by the BloomPool.
      * @dev Module Developers need to implement the _getRwaSwapAmount and _repayRwa functions in order to allow this function to execute successfully.
      * @param tbyId The id of the TBY to repay the borrowed assets for.
-     * @return lenderReturn The amount of underlying assets that the lender is receiving.
-     * @return borrowerReturn The amount of underlying assets that the borrower is receiving.
+     * @return rwaAmount The amount of RWA assets repaid.
+     * @return assetAmount The amount of underlying assets received after repaying the RWA.
+     * @return endRwaCollateral The amount of RWA collateral backed by the TBY after repaying the RWA.
+     * @return endAssetCollateral The amount of underlying asset collateral backed by the TBY after repaying the RWA.
      */
-    function repay(uint256 tbyId) external returns (uint256 lenderReturn, uint256 borrowerReturn);
+    function repay(uint256 tbyId)
+        external
+        returns (uint256 rwaAmount, uint256 assetAmount, uint256 endRwaCollateral, uint256 endAssetCollateral);
 
     /**
-     * @notice Transfers the underlying asset collateral back to the recipient.
+     * @notice Withdraws the lender's funds from the TBY.
      * @dev This function will be called by the BloomPool.
-     * @param tbyId The id of the TBY to transfer the collateral for.
-     * @param amount The amount of collateral to transfer.
-     * @param recipient The address of the recipient to transfer the collateral to.
+     * @param tbyId The id of the TBY to withdraw the lender's funds from.
+     * @param lender The address of the lender to withdraw the funds for.
+     * @param amount The amount of funds to withdraw.
+     * @return reward The amount of rewards to be paid to the lender.
      */
-    function transferCollateral(uint256 tbyId, uint256 amount, address recipient) external;
+    function withdrawLender(uint256 tbyId, address lender, uint256 amount) external returns (uint256 reward);
+
+    /**
+     * @notice Withdraws the borrower's funds from the TBY.
+     * @dev This function will be called by the BloomPool.
+     * @param tbyId The id of the TBY to withdraw the borrower's funds from.
+     * @param borrower The address of the borrower to withdraw the funds for.
+     * @return reward The amount of rewards to be paid to the borrower.
+     */
+    function withdrawBorrower(uint256 tbyId, address borrower) external returns (uint256 reward);
 
     /**
      * @notice Calculates the TBY id to mint based on the last minted TBY id (in this module), the swap buffer, and the last minted TBY id from the Bloom Pool.
@@ -170,6 +185,18 @@ interface IBorrowModule {
      */
     function tbyCollateral(uint256 tbyId) external view returns (TbyCollateral memory);
 
+    /// @notice Returns the total amount of assets a borrower has contributed to for a given Tby ID.
+    function borrowerAmount(address account, uint256 id) external view returns (uint256);
+
+    /// @notice Returns the total amount of assets all the borrowers have contributed to for a given Tby ID.
+    function totalBorrowed(uint256 id) external view returns (uint256);
+
     /// @notice Returns the TbyMaturity struct containing the start and end timestamps of a given Tby ID.
     function tbyMaturity(uint256 id) external view returns (TbyMaturity memory);
+
+    /// @notice Returns the total amount of assets currently available for lender's to redeem for a given Tby ID.
+    function lenderReturns(uint256 id) external view returns (uint256);
+
+    /// @notice Returns the total amount of assets currently available for borrower's to redeem for a given Tby ID.
+    function borrowerReturns(uint256 id) external view returns (uint256);
 }
