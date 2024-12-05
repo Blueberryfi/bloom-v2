@@ -17,23 +17,23 @@ contract StorageUnitTests is BloomTestSetup {
         super.setUp();
     }
 
-    function testTby() public view {
+    function testTby() public {
         assertEq(bloomPool.tby(), address(tby));
     }
 
-    function testAsset() public view {
+    function testAsset() public {
         assertEq(bloomPool.asset(), address(stable));
     }
 
-    function testAssetDecimals() public view {
+    function testAssetDecimals() public {
         assertEq(bloomPool.assetDecimals(), stable.decimals());
     }
 
-    function testMinOrderSize() public view {
+    function testMinOrderSize() public {
         assertEq(bloomPool.minOrderSize(), 1e6);
     }
 
-    function testLastMintedId() public view {
+    function testLastMintedId() public {
         assertEq(bloomPool.lastMintedId(), type(uint256).max);
     }
 }

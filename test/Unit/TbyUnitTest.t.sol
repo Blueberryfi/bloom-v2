@@ -24,23 +24,23 @@ contract TbyUnitTest is BloomTestSetup {
         assertEq(newTby.decimals(), 18);
     }
 
-    function testBloomPool() public view {
+    function testBloomPool() public {
         assertEq(tby.bloomPool(), address(bloomPool));
     }
 
-    function testDecimals() public view {
+    function testDecimals() public {
         assertEq(tby.decimals(), bloomPool.assetDecimals());
     }
 
-    function testName() public view {
+    function testName() public {
         assertEq(tby.name(), "Term Bound Yield");
     }
 
-    function testSymbol() public view {
+    function testSymbol() public {
         assertEq(tby.symbol(), "TBY");
     }
 
-    function testUri() public view {
+    function testUri() public {
         assertEq(tby.uri(1), "https://bloom.garden/live");
     }
 
