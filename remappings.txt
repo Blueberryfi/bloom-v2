@@ -1,4 +1,4 @@
+@bloom-v2/=src/
 @chainlink/=dependencies/@chainlink-contracts-1.3.0/src/v0.8/
 @openzeppelin/=dependencies/@openzeppelin-contracts-5.1.0/
 @solady/=dependencies/solady-0.0.267/src
-@bloom-v2/=src/
