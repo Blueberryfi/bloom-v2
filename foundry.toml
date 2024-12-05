@@ -1,14 +1,8 @@
 [profile.default]
 src = "src"
 out = "out"
-libs = ["lib"]
+libs = ["dependencies"]
 via-ir = true
-
-remappings = [
-    "@bloom-v2/=src/",
-    "@solady/=lib/solady/src/",
-    "@chainlink/=lib/chainlink/contracts/src/v0.8/",
-]
 
 [fuzz]
 runs = 10000
@@ -28,3 +22,8 @@ arbitrum = { key = "${ARBITRUM_API_KEY}" }
 arbitrum_sepolia = { key = "${ARBITRUM_API_KEY}" }
 base = { key = "${BASESCAN_API_KEY}" }
 base_sepolia = { key = "${BASESCAN_API_KEY}" }
+
+[dependencies]
+"@chainlink-contracts" = "1.3.0"
+"@openzeppelin-contracts" = "5.1.0"
+solady = "0.0.267"

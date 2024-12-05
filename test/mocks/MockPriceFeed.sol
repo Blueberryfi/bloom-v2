@@ -9,7 +9,7 @@
 */
 pragma solidity 0.8.27;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from "@openzeppelin/access/Ownable.sol";
 
 contract MockPriceFeed is Ownable {
     uint80 private _roundId;

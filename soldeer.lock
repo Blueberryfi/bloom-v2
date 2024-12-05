@@ -1,0 +1,27 @@
+[[dependencies]]
+name = "@chainlink-contracts"
+version = "1.3.0"
+url = "https://soldeer-revisions.s3.amazonaws.com/@chainlink-contracts/1_3_0_22-10-2024_06:01:09_contracts.zip"
+checksum = "2c577f9c36b70b13b0de97314c432f9f3118084916b427d4bbb8da8213430395"
+integrity = "dd0e52bd983d473fbaec829f78616b9cd3fd2b572efad2c5cb0ee4a71f6279d6"
+
+[[dependencies]]
+name = "@openzeppelin-contracts"
+version = "5.1.0"
+url = "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_1_0_19-10-2024_10:28:52_contracts.zip"
+checksum = "fd3d1ea561cb27897008aee18ada6e85f248eb161c86e4435272fc2b5777574f"
+integrity = "cb6cf6e878f2943b2291d5636a9d72ac51d43d8135896ceb6cf88d36c386f212"
+
+[[dependencies]]
+name = "smartcontractkit-ccip"
+version = "2.14.0-ccip1.5.9"
+url = "https://soldeer-revisions.s3.amazonaws.com/smartcontractkit-ccip/2_14_0-ccip1_5_9_13-11-2024_01:58:49_smartcontractkit-ccip-2.14.0-ccip1.5.zip"
+checksum = "d7b7c3a5112d83b9de548071e175f8b4de4053ffdd49be1abdb7e6c7dc125a69"
+integrity = "f31c2efe718fad78648306239dbcff8f458a4cdbee249a08d19652f5b563f793"
+
+[[dependencies]]
+name = "solady"
+version = "0.0.267"
+url = "https://soldeer-revisions.s3.amazonaws.com/solady/0_0_267_10-11-2024_04:41:49_solady.zip"
+checksum = "b796cf06df3416d013c012a48aaf048602f370da5a2459a8a974560b7dc481be"
+integrity = "fda9c711c186d6abf2fe0232a2c6010884e75d3552e37ec8af5b20babd4935eb"

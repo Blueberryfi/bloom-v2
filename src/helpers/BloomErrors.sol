@@ -53,6 +53,15 @@ library BloomErrors {
     /// @notice Emitted when a borrower tries to kill a match order that does not exist.
     error MatchOrderNotFound();
 
+    /// @notice Emitted when a borrower tries to borrow from an invalid borrow module. (Could be paused or not added)
+    error InvalidBorrowModule();
+
+    /// @notice Emitted when a borrower tries to borrow an amount that is greater than the total collateral.
+    error ExceedsSlippage();
+
+    /// @notice Emitted when an order falls below the minimum size.
+    error OrderBelowMinSize();
+
     /*///////////////////////////////////////////////////////////////
                             KYC Errors    
     //////////////////////////////////////////////////////////////*/
@@ -90,6 +99,16 @@ library BloomErrors {
     error InsufficientBalance();
 
     /*///////////////////////////////////////////////////////////////
+                            CCIP Errors
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice The error emitted when the sender is invalid.
+    error InvalidSender();
+
+    /// @notice The error emitted when the chain ID is 0 on construction or if a message is sent from the wrong chain.
+    error InvalidChainId();
+
+    /*///////////////////////////////////////////////////////////////
                             Price Feeds    
     //////////////////////////////////////////////////////////////*/
 
@@ -98,4 +117,7 @@ library BloomErrors {
 
     /// @notice Invalid Price Feed
     error InvalidPriceFeed();
+
+    /// @notice Invalid Configuration
+    error InvalidConfiguration();
 }
