@@ -156,7 +156,7 @@ abstract contract CCIPReceiverModule is ICCIPModule, CCIPReceiver, Ownable {
         IERC20 rwa_ = IERC20(_rwa);
 
         uint256 rwaStartingBalance = rwa_.balanceOf(address(this));
-        _purchaseRwa(messageData.borrower, messageData.assetAmount, messageData.rwaAmount);
+        _purchaseRwa(messageData.borrower, messageData.assetAmount);
         uint256 rwaReceived = rwa_.balanceOf(address(this)) - rwaStartingBalance;
 
         Client.EVM2AnyMessage memory message = _buildMessage(
@@ -228,9 +228,8 @@ abstract contract CCIPReceiverModule is ICCIPModule, CCIPReceiver, Ownable {
      * @notice Custom RWA purchase logic that integrators must implement within the child contract.
      * @param borrower Address of the borrower who is executing this purchase.
      * @param assetAmount The amount of assets being used to purchase the RWA token.
-     * @param rwaAmount The amount of RWA the borrower is desiring to purchase.
      */
-    function _purchaseRwa(address borrower, uint256 assetAmount, uint256 rwaAmount) internal virtual;
+    function _purchaseRwa(address borrower, uint256 assetAmount) internal virtual;
 
     /**
      * @notice Custom RWA repayment logic that integrators must implement within the child contract.

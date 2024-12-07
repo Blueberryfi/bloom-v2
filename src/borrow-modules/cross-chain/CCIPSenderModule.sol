@@ -82,15 +82,10 @@ abstract contract CCIPSenderModule is ICCIPModule, CCIPReceiver, BorrowModule {
      * @dev Developers must add an implementation for _afterBorrowMessage within the child contract.
      * @param borrower The address of the borrower.
      * @param totalCollateral The total amount of collateral being swapped in.
-     * @param rwaAmount The amount of RWA tokens purchased.
      * @return The amount of RWA tokens purchased.
      */
-    function _purchaseRwa(address borrower, uint256 totalCollateral, uint256 rwaAmount)
-        internal
-        virtual
-        override
-        returns (uint256)
-    {
+    function _purchaseRwa(address borrower, uint256 totalCollateral) internal virtual override returns (uint256) {
+        uint256 rwaAmount = _bloomOracle.getQuote(totalCollateral, address(_asset), address(_rwa));
         Client.EVM2AnyMessage memory message = _buildMessage(MessageType.REPAY, borrower, totalCollateral, rwaAmount);
         _sendMessage(message);
 

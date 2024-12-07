@@ -33,9 +33,11 @@ contract MockCCIPDstModule is CCIPReceiverModule {
         mockAmm = MockAMM(amm_);
     }
 
-    function _purchaseRwa(address, /*borrower*/ uint256 assetAmount, uint256 rwaAmount) internal virtual override {
+    function _purchaseRwa(address, /*borrower*/ uint256 assetAmount) internal virtual override {
         IERC20(_asset).forceApprove(address(mockAmm), assetAmount);
-        mockAmm.swap(_asset, _rwa, assetAmount, rwaAmount);
+        // uint256 rwaAmount = _bloomOracle.getQuote(assetAmount, address(_asset), address(_rwa));
+        // TODO: Change to proper quote
+        mockAmm.swap(_asset, _rwa, assetAmount, assetAmount);
     }
 
     function _repayRwa(address, /*borrower*/ uint256 rwaAmount, uint256 assetAmount) internal virtual override {

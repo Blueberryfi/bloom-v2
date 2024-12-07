@@ -9,12 +9,12 @@
 */
 pragma solidity 0.8.27;
 
-import {IERC20Metadata} from "@openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
-import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
+import {AggregatorV3Interface} from "@chainlink/shared/interfaces/AggregatorV3Interface.sol";
 import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
 import {Ownable} from "@openzeppelin/access/Ownable.sol";
+import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
-import {AggregatorV3Interface} from "@chainlink/shared/interfaces/AggregatorV3Interface.sol";
+import {IERC20Metadata} from "@openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
@@ -29,6 +29,10 @@ import {ITby} from "@bloom-v2/interfaces/ITby.sol";
 abstract contract BorrowModule is IBorrowModule, Ownable {
     using FpMath for uint256;
     using SafeERC20 for IERC20;
+
+    /*///////////////////////////////////////////////////////////////
+                                Storage 
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice Leverage value for the borrower. scaled by 1e18 (20x leverage == 20e18)
     uint256 internal _leverage;

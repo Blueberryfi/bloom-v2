@@ -9,74 +9,164 @@
 */
 pragma solidity 0.8.27;
 
-import {ISuperstateToken} from "../../interfaces/super-state/ISuperstateToken.sol";
-import {IRedemptionIdle} from "../../interfaces/super-state/IRedemptionIdle.sol";
-import {BorrowModule} from "../BorrowModule.sol";
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
-import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
 
-interface IBorrowerAccount {
-    function borrower() external view returns (address);
-}
+import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
+import {BorrowModule} from "@bloom-v2/borrow-modules/BorrowModule.sol";
+import {IRedemptionIdle} from "@bloom-v2/interfaces/super-state/IRedemptionIdle.sol";
+import {ISuperstateToken} from "@bloom-v2/interfaces/super-state/ISuperstateToken.sol";
+import {ISuperStateEscrow} from "@bloom-v2/interfaces/super-state/ISuperStateEscrow.sol";
 
-contract SuperStateEscrow is IBorrowerAccount {
-    using FpMath for uint256;
+/**
+ * @title SuperStateEscrow
+ * @notice To interact with SuperState, senders addresses must be unique to the verified borrower. In other words, each borrower
+ *         must have their own escrow contract in order to allow for atomic borrowing and repaying of SuperState's USTB.
+ */
+contract SuperStateEscrow is ISuperStateEscrow {
+    /*///////////////////////////////////////////////////////////////
+                        Constants & Immutables
+    //////////////////////////////////////////////////////////////*/
 
-    address internal _borrower;
-    address internal _borrowModule;
-    address internal _underlying;
-    address internal _superstateToken;
-    address internal _redemptionContract;
+    /// @notice The address of the borrower associated with this escrow contract.
+    address internal immutable _borrower;
 
-    mapping(uint256 => uint256) internal _tbyIdToRwaAmount;
+    /// @notice The address of the borrow module which created this escrow contract.
+    address internal immutable _borrowModule;
 
+    /// @notice The address of the underlying asset.
+    address internal immutable _asset;
+
+    /// @notice The address of the SuperstateToken (USTB).
+    address internal immutable _superstateToken;
+
+    /// @notice The address of SuperState's redemption contract.
+    address internal immutable _redemptionContract;
+
+    /*///////////////////////////////////////////////////////////////
+                            Modifiers
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Modifier that ensures that only the borrow module can call a function.
     modifier onlyBorrowModule() {
-        require(msg.sender == _borrowModule, "Only the borrow module can call this function");
+        require(msg.sender == _borrowModule, Errors.InvalidSender());
         _;
     }
 
-    constructor(address borrower_, address redemptionContract_) {
-        _borrower = borrower_;
-        _borrowModule = msg.sender;
+    /// @notice Modifier that ensures that only the borrower can call a function.
+    modifier onlyBorrower() {
+        require(msg.sender == _borrower, Errors.InvalidSender());
+        _;
+    }
 
-        BorrowModule borrowModule = BorrowModule(payable(msg.sender));
-        _underlying = borrowModule.asset();
-        _superstateToken = borrowModule.rwa();
+    /*///////////////////////////////////////////////////////////////
+                            Constructor
+    //////////////////////////////////////////////////////////////*/
+
+    constructor(address borrower_, address redemptionContract_) {
+        BorrowModule module = BorrowModule(payable(msg.sender));
+        _borrower = borrower_;
+        _borrowModule = address(module);
+        _asset = module.asset();
+        _superstateToken = module.rwa();
         _redemptionContract = redemptionContract_;
     }
 
-    function borrower() external view returns (address) {
-        return _borrower;
-    }
+    /*///////////////////////////////////////////////////////////////
+                            External Functions
+    //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Allows the borrow module to purchase USTB on behalf of the borrower.
+     * @param totalCollateral The amount of stablecoin being used to purchase USTB.
+     * @return The amount of USTB purchased.
+     */
     function executePurchase(uint256 totalCollateral) external onlyBorrowModule returns (uint256) {
-        IERC20 stablecoin = IERC20(_underlying);
+        IERC20 stablecoin = IERC20(_asset);
         stablecoin.approve(_superstateToken, totalCollateral);
         stablecoin.transferFrom(_borrower, address(this), totalCollateral);
         return _subscribe(totalCollateral);
     }
 
-    function executeRepayment(uint256 amount) external onlyBorrowModule returns (uint256) {
-        IERC20 superstateToken = IERC20(_superstateToken);
-        uint256 ustbToSpend = FpMath.min(_tbyIdToRwaAmount[amount], amount);
-        superstateToken.approve(_borrowModule, ustbToSpend);
-        return _redeem(ustbToSpend);
+    /**
+     * @notice Allows the borrow module to repay the USTB on behalf of the borrower.
+     * @param ustbAmount The amount of USTB being repaid.
+     * @return The amount of stablecoin received.
+     */
+    function executeRepayment(uint256 ustbAmount) external onlyBorrowModule returns (uint256) {
+        IERC20 ustb = IERC20(_superstateToken);
+        ustb.approve(_borrowModule, ustbAmount);
+        return _redeem(ustbAmount);
     }
 
+    /**
+     * @notice Allows the borrower to sweep any remaining stablecoin in the escrow contract.
+     * @dev This function can only be called by the borrower.
+     * @dev The escrow contract should never have any stablecoin balance unless SuperState reimburses the borrowers
+     *      fees given a large volume of transactions over the course of the protocol's lifetime.
+     */
+    function sweep() external onlyBorrower {
+        IERC20 stablecoin = IERC20(_asset);
+        stablecoin.transfer(_borrower, stablecoin.balanceOf(address(this)));
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                            Internal Functions
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Internal logic for purchasing USTB.
+     * @param stableAmount The amount of stablecoin being used to purchase USTB.
+     * @return The amount of USTB purchased.
+     */
     function _subscribe(uint256 stableAmount) internal returns (uint256) {
-        ISuperstateToken superstateToken = ISuperstateToken(_superstateToken);
-        uint256 ustbBefore = superstateToken.balanceOf(address(this));
-        superstateToken.subscribe(stableAmount, _underlying);
-        uint256 ustbAfter = superstateToken.balanceOf(address(this));
+        ISuperstateToken ustb = ISuperstateToken(_superstateToken);
+        uint256 ustbBefore = ustb.balanceOf(address(this));
+        ustb.subscribe(stableAmount, _asset);
+        uint256 ustbAfter = ustb.balanceOf(address(this));
         return ustbAfter - ustbBefore;
     }
 
+    /**
+     * @notice Internal logic for redeeming USTB.
+     * @dev This function transfers the stablecoin back to the borrow module.
+     * @param amount The amount of USTB being redeemed.
+     * @return The amount of stablecoin received.
+     */
     function _redeem(uint256 amount) internal returns (uint256) {
-        IERC20 stablecoin = IERC20(_underlying);
+        IERC20 stablecoin = IERC20(_asset);
         uint256 usdcBefore = stablecoin.balanceOf(address(this));
         IRedemptionIdle(_redemptionContract).redeem(amount);
         uint256 usdcReceived = stablecoin.balanceOf(address(this)) - usdcBefore;
         stablecoin.transfer(msg.sender, usdcReceived);
         return usdcReceived;
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                            View Functions
+    //////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc ISuperStateEscrow
+    function borrower() external view returns (address) {
+        return _borrower;
+    }
+
+    /// @inheritdoc ISuperStateEscrow
+    function borrowModule() external view returns (address) {
+        return _borrowModule;
+    }
+
+    /// @inheritdoc ISuperStateEscrow
+    function asset() external view returns (address) {
+        return _asset;
+    }
+
+    /// @inheritdoc ISuperStateEscrow
+    function superstateToken() external view returns (address) {
+        return _superstateToken;
+    }
+
+    /// @inheritdoc ISuperStateEscrow
+    function redemptionContract() external view returns (address) {
+        return _redemptionContract;
     }
 }
