@@ -46,16 +46,15 @@ contract MockBorrowModule is BorrowModule {
      *         2. The borrow module will need to swap the underlying asset collateral for the RWA token.
      *         3. RWA token should be held within the borrow module's contract.
      * @param totalCollateral The total amount of collateral being swapped in.
-     * @param rwaAmount The amount of RWA tokens purchased.
      * @return The amount of RWA tokens purchased.
      */
     function _purchaseRwa(
         address,
         /*borrower*/
-        uint256 totalCollateral,
-        uint256 rwaAmount
+        uint256 totalCollateral
     ) internal override returns (uint256) {
         IERC20(_asset).forceApprove(address(_amm), totalCollateral);
+        uint256 rwaAmount = _bloomOracle.getQuote(totalCollateral, address(_asset), address(_rwa));
         _amm.swap(address(_asset), address(_rwa), totalCollateral, rwaAmount);
         return rwaAmount;
     }

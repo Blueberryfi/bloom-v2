@@ -174,13 +174,13 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
         bCollateral = amount.divWadUp(_leverage);
         require(bCollateral > 0, Errors.ZeroAmount());
 
-        uint256 totalCollateral = _getCollateral(borrower, amount, bCollateral);
-        uint256 rwaAmount = _bloomOracle.getQuote(totalCollateral, address(_asset), address(_rwa));
-        rwaAmount = _purchaseRwa(borrower, totalCollateral, rwaAmount);
-
         if (tbyId != _lastMintedId) {
             _lastMintedId = tbyId;
         }
+
+        // TODO: Optimize this to only get collateral once.
+        uint256 totalCollateral = _getCollateral(borrower, amount, bCollateral);
+        uint256 rwaAmount = _purchaseRwa(borrower, totalCollateral);
 
         TbyCollateral storage collateral = _idToCollateral[tbyId];
         collateral.rwaAmount += uint128(rwaAmount);
@@ -341,7 +341,7 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
      * @param account The address of the borrower to whitelist.
      * @param isKyced True to whitelist, false to remove from whitelist.
      */
-    function whitelistBorrower(address account, bool isKyced) external onlyOwner {
+    function whitelistBorrower(address account, bool isKyced) public onlyOwner {
         _borrowers[account] = isKyced;
         emit BorrowerKyced(account, isKyced);
     }
@@ -563,13 +563,9 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
      *         3. RWA token should be held within the borrow module's contract.
      * @param borrower The address of the borrower.
      * @param totalCollateral The total amount of collateral being swapped in.
-     * @param rwaAmount The amount of RWA tokens purchased.
      * @return The amount of RWA tokens purchased.
      */
-    function _purchaseRwa(address borrower, uint256 totalCollateral, uint256 rwaAmount)
-        internal
-        virtual
-        returns (uint256);
+    function _purchaseRwa(address borrower, uint256 totalCollateral) internal virtual returns (uint256);
 
     /**
      * @notice Repays the RWA tokens to the issuer in exchange for the underlying asset collateral.
@@ -581,7 +577,7 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
      * @param amount The amount of RWA tokens being repaid.
      * @return The amount of underlying asset collateral being received.
      */
-    function _repayRwa(uint256 amount) internal virtual returns (uint256) {}
+    function _repayRwa(uint256 amount) internal virtual returns (uint256);
 
     /**
      * @notice Returns the amount of RWA tokens that are being swapped out of the pool.
