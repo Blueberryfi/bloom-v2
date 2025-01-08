@@ -118,14 +118,22 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
         }
 
         uint256 len = lenders.length;
+        uint256[] memory amounts = new uint256[](len);
+
         for (uint256 i = 0; i != len; ++i) {
-            uint256 filled = _fillOrder(lenders[i], tbyId, amount);
-            if (filled == 0) break;
-            lCollateral += filled;
+            amounts[i] = _fillOrder(lenders[i], tbyId, amount);
+            if (amounts[i] == 0) break;
+            lCollateral += amounts[i];
         }
 
         IERC20(_asset).forceApprove(module, lCollateral);
-        bCollateral = IBorrowModule(module).borrow(tbyId, msg.sender, lCollateral);
+        bCollateral = IBorrowModule(module).borrow(
+            tbyId, 
+            msg.sender, 
+            lCollateral,
+            lenders,
+            amounts
+        );
         emit Borrowed(msg.sender, tbyId, lCollateral, bCollateral);
     }
 
@@ -142,7 +150,6 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
     function redeemLender(uint256 tbyId, uint256 amount) external override returns (uint256 reward) {
         require(_tby.balanceOf(msg.sender, tbyId) >= amount, Errors.InsufficientBalance());
         reward = IBorrowModule(_tbyModule[tbyId]).withdrawLender(tbyId, msg.sender, amount);
-        _tby.burn(tbyId, msg.sender, amount);
         emit LenderRedeemed(msg.sender, tbyId, reward);
     }
 
@@ -219,7 +226,6 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
         }
 
         _userOpenOrder[account] = orderDepth;
-        _tby.mint(tbyId, account, lCollateral);
         emit OrderFilled(account, msg.sender, lCollateral);
     }
 

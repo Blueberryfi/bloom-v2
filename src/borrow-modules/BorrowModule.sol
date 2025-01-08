@@ -17,16 +17,16 @@ import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
+import {Tby} from "@bloom-v2/token/Tby.sol";
 import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
 import {IBorrowModule} from "@bloom-v2/interfaces/IBorrowModule.sol";
 import {IBloomOracle} from "@bloom-v2/interfaces/IBloomOracle.sol";
-import {ITby} from "@bloom-v2/interfaces/ITby.sol";
 
 /**
  * @title BorrowModule
  * @notice Reusable logic for building borrow modules on the Bloom Protocol.
  */
-abstract contract BorrowModule is IBorrowModule, Ownable {
+abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
     using FpMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -80,9 +80,6 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
     /// @notice The Bloom Pool contract.
     IBloomPool internal immutable _bloomPool;
 
-    /// @notice The TBY contract.
-    ITby internal immutable _tby;
-
     /// @notice The underlying asset of the pool.
     IERC20 internal immutable _asset;
 
@@ -133,23 +130,26 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     constructor(
+        string memory name_,
+        string memory symbolSuffix_,
         address bloomPool_,
         address bloomOracle_,
         address rwa_,
+        uint256 assetDecimals_,
         uint256 initLeverage,
         uint256 initSpread,
         address owner_
-    ) Ownable(owner_) {
+    ) Tby(name_, symbolSuffix_, assetDecimals_) Ownable(owner_) {
         require(bloomPool_ != address(0) && rwa_ != address(0) && bloomOracle_ != address(0), Errors.ZeroAddress());
 
         address asset_ = IBloomPool(bloomPool_).asset();
         _asset = IERC20(asset_);
         _bloomPool = IBloomPool(bloomPool_);
-        _tby = ITby(IBloomPool(bloomPool_).tby());
         _rwa = IERC20(rwa_);
         _bloomOracle = IBloomOracle(bloomOracle_);
 
         _assetDecimals = IERC20Metadata(asset_).decimals();
+        require(assetDecimals_ == _assetDecimals, Errors.InputMismatch());
         _rwaDecimals = IERC20Metadata(rwa_).decimals();
 
         _ONE_RWA = 10 ** _rwaDecimals;
@@ -167,7 +167,7 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBorrowModule
-    function borrow(uint256 tbyId, address borrower, uint256 amount)
+    function borrow(uint256 tbyId, address borrower, uint256 amount, address[] memory lenders, uint256[] memory amounts)
         external
         payable
         override
@@ -177,6 +177,11 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
     {
         bCollateral = amount.divWadUp(_leverage);
         require(bCollateral > 0, Errors.ZeroAmount());
+
+        uint256 len = amounts.length;
+        for (uint256 i = 0; i != len; ++i) {
+            _mint(lenders[i], tbyId, amounts[i], "");
+        }
 
         if (tbyId != _lastMintedId) {
             _lastMintedId = tbyId;
@@ -226,7 +231,7 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
             RwaPrice storage rwaPrice_ = _tbyIdToRwaPrice[tbyId];
 
             assetAmount = collateral.assetAmount;
-            uint256 tbyAmount = _tby.totalSupply(tbyId);
+            uint256 tbyAmount = totalSupply(tbyId);
             uint256 rate = getRate(tbyId);
             uint256 lenderReturn = rate.mulWad(tbyAmount);
 
@@ -251,12 +256,13 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
         onlyBloomPool
         returns (uint256 reward)
     {
-        uint256 totalSupply = _tby.totalSupply(tbyId);
+        uint256 totalSupply = totalSupply(tbyId);
         reward = (_tbyLenderReturns[tbyId] * amount) / totalSupply;
         require(reward > 0, Errors.ZeroRewards());
         _tbyLenderReturns[tbyId] -= reward;
 
         _transferCollateral(tbyId, lender, reward);
+        _burn(tbyId, lender, amount);
     }
 
     /// @inheritdoc IBorrowModule
@@ -469,10 +475,6 @@ abstract contract BorrowModule is IBorrowModule, Ownable {
         return address(_bloomPool);
     }
 
-    /// @inheritdoc IBorrowModule
-    function tby() external view override returns (address) {
-        return address(_tby);
-    }
 
     /// @inheritdoc IBorrowModule
     function asset() external view override returns (address) {

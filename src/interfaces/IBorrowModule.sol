@@ -78,9 +78,11 @@ interface IBorrowModule {
      * @param tbyId The id of the TBY to borrow the assets for.
      * @param borrower The address of the borrower.
      * @param amount The amount of underlying assets that the borrower is borrowering.
+     * @param lenders The addresses of the lenders.
+     * @param amounts The amounts of the lenders.
      * @return bCollateral Total amount of borrower collateral posted to execute the transaction.
      */
-    function borrow(uint256 tbyId, address borrower, uint256 amount) external payable returns (uint256 bCollateral);
+    function borrow(uint256 tbyId, address borrower, uint256 amount, address[] memory lenders, uint256[] memory amounts) external payable returns (uint256 bCollateral);
 
     /**
      * @notice Repays ALL borrowers borrowed funds + collateral.
@@ -136,9 +138,6 @@ interface IBorrowModule {
 
     /// @notice Returns the address of the Bloom Pool.
     function bloomPool() external view returns (address);
-
-    /// @notice Returns the address of the tby token.
-    function tby() external view returns (address);
 
     /// @notice Returns the address of the underlying asset of the pool.
     function asset() external view returns (address);
