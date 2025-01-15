@@ -11,6 +11,7 @@ pragma solidity 0.8.27;
 
 import {ERC1155} from "@solady/tokens/ERC1155.sol";
 import {FixedPointMathLib as Math} from "@solady/utils/FixedPointMathLib.sol";
+import {LibString} from "@solady/utils/LibString.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {ITby} from "@bloom-v2/interfaces/ITby.sol";
@@ -26,6 +27,12 @@ abstract contract Tby is ITby, ERC1155 {
                                 Storage    
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice The name of the token.
+    string private _name;
+
+    /// @notice The symbol of the token.
+    string private _symbol;
+
     /// @notice Mapping of the user's total supply of LTby.
     mapping(uint256 => uint256) private _totalSupply;
 
@@ -33,14 +40,8 @@ abstract contract Tby is ITby, ERC1155 {
                                 Immutables    
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice The name of the token.
-    string private immutable _name;
-
-    /// @notice The symbol of the token.
-    string private immutable _symbol;
-
     /// @notice The number of decimals for the token.
-    uint8 private immutable _decimals;
+    uint8 internal immutable _decimals;
 
     /*///////////////////////////////////////////////////////////////
                             Constructor    
@@ -57,12 +58,12 @@ abstract contract Tby is ITby, ERC1155 {
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc ITby
-    function name() external pure returns (string memory) {
+    function name() external view returns (string memory) {
         return _name;
     }
 
     /// @inheritdoc ITby
-    function symbol() external pure returns (string memory) {
+    function symbol() external view returns (string memory) {
         return _symbol;
     }
 
@@ -78,7 +79,7 @@ abstract contract Tby is ITby, ERC1155 {
 
     /// @inheritdoc ERC1155
     function uri(uint256 id) public view virtual override returns (string memory) {
-        return string.concat("https://bloom.garden/", _symbol, "/", id);
+        return string.concat("https://bloom.garden/", _symbol, "/", LibString.toString(id));
     }
 
     /**
@@ -88,7 +89,7 @@ abstract contract Tby is ITby, ERC1155 {
      * @param id The Tby id.
      * @param amount The amount to mint.
      */
-    function _mint(address account, uint256 id, uint256 amount, bytes memory data) internal override {
+    function _mint(address account, uint256 id, uint256 amount, bytes memory /*data*/) internal override {
         _totalSupply[id] += amount;
         super._mint(account, id, amount, "");
         emit Mint(account, id, amount);
@@ -97,11 +98,11 @@ abstract contract Tby is ITby, ERC1155 {
     /**
      * @notice Burns Tby tokens from an account.
      * @dev This function is overridden to update the total supply of Tby.
-     * @param id The Tby id.
      * @param account The address of the account to burn from.
+     * @param id The Tby id.
      * @param amount The amount to burn.
      */
-    function _burn(uint256 id, address account, uint256 amount) internal override {
+    function _burn(address account, uint256 id, uint256 amount) internal override {
         _totalSupply[id] -= amount;
         super._burn(account, id, amount);
         emit Burn(account, id, amount);

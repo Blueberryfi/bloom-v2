@@ -86,9 +86,6 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
     /// @notice The RWA token of the pool.
     IERC20 internal immutable _rwa;
 
-    /// @notice The Bloom Oracle contract.
-    IBloomOracle internal immutable _bloomOracle;
-
     /// @notice The upper bound leverage allowed for pool (Cant be set to 100x but just under).
     uint256 constant MAX_LEVERAGE = 100e18;
 
@@ -133,20 +130,18 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
         string memory name_,
         string memory symbolSuffix_,
         address bloomPool_,
-        address bloomOracle_,
         address rwa_,
-        uint256 assetDecimals_,
+        uint8 assetDecimals_,
         uint256 initLeverage,
         uint256 initSpread,
         address owner_
     ) Tby(name_, symbolSuffix_, assetDecimals_) Ownable(owner_) {
-        require(bloomPool_ != address(0) && rwa_ != address(0) && bloomOracle_ != address(0), Errors.ZeroAddress());
+        require(bloomPool_ != address(0) && rwa_ != address(0), Errors.ZeroAddress());
 
         address asset_ = IBloomPool(bloomPool_).asset();
         _asset = IERC20(asset_);
         _bloomPool = IBloomPool(bloomPool_);
         _rwa = IERC20(rwa_);
-        _bloomOracle = IBloomOracle(bloomOracle_);
 
         _assetDecimals = IERC20Metadata(asset_).decimals();
         require(assetDecimals_ == _assetDecimals, Errors.InputMismatch());
@@ -187,8 +182,7 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
             _lastMintedId = tbyId;
         }
 
-        // TODO: Optimize this to only get collateral once.
-        uint256 totalCollateral = _getCollateral(borrower, amount, bCollateral);
+        uint256 totalCollateral = _transferCollateral(borrower, amount, bCollateral);
         uint256 rwaAmount = _purchaseRwa(borrower, totalCollateral);
 
         TbyCollateral storage collateral = _idToCollateral[tbyId];
@@ -240,7 +234,7 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
                 rwaPrice_.endPrice = uint128(rate.mulWad(rwaPrice_.startPrice));
                 lenderReturn = getRate(tbyId).mulWad(tbyAmount);
             } else {
-                rwaPrice_.endPrice = uint128(_bloomOracle.getQuote(1e18, address(_rwa), address(_asset)) * 1e12);
+                rwaPrice_.endPrice = uint128(_getRwaPrice());
             }
 
             _tbyLenderReturns[tbyId] = lenderReturn;
@@ -262,7 +256,7 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
         _tbyLenderReturns[tbyId] -= reward;
 
         _transferCollateral(tbyId, lender, reward);
-        _burn(tbyId, lender, amount);
+        _burn(lender, tbyId, amount);
     }
 
     /// @inheritdoc IBorrowModule
@@ -427,7 +421,7 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
         return uint128(totalValue.divWad(totalCollateral));
     }
 
-    function _getCollateral(address borrower, uint256 amount, uint256 bCollateral) internal returns (uint256) {
+    function _transferCollateral(address borrower, uint256 amount, uint256 bCollateral) internal returns (uint256) {
         IERC20(_asset).transferFrom(borrower, address(this), bCollateral);
         IERC20(_asset).transferFrom(address(_bloomPool), address(this), amount);
         return amount + bCollateral;
@@ -464,8 +458,7 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
         // If the TBY has matured, and is eligible for redemption, calculate the rate based on the end price.
         uint256 price = rwaPrice_.endPrice != 0
             ? rwaPrice_.endPrice
-            : _bloomOracle.getQuote(_ONE_RWA, address(_rwa), address(_asset))
-                * (10 ** (18 - IERC20Metadata(address(_asset)).decimals()));
+            : _getRwaPrice();
         uint256 rate = (uint256(price).divWad(uint256(rwaPrice_.startPrice)));
         return _takeSpread(rate, rwaPrice_.spread);
     }
@@ -484,11 +477,6 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
     /// @inheritdoc IBorrowModule
     function rwa() external view override returns (address) {
         return address(_rwa);
-    }
-
-    /// @inheritdoc IBorrowModule
-    function bloomOracle() external view override returns (address) {
-        return address(_bloomOracle);
     }
 
     /// @inheritdoc IBorrowModule
@@ -592,9 +580,11 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
      * @param tbyId The id of the TBY to get the RWA swap amount for.
      * @return The amount of RWA tokens being swapped out.
      */
-    function _getRwaSwapAmount(uint256 tbyId) internal virtual returns (uint256) {
+    function _getRwaSwapAmount(uint256 tbyId) internal view virtual returns (uint256) {
         return _idToCollateral[tbyId].rwaAmount;
     }
+
+    function _getRwaPrice() internal view virtual returns (uint256);
 
     /*///////////////////////////////////////////////////////////////
                             General Functions    

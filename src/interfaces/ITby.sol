@@ -39,12 +39,6 @@ interface ITby {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Returns the address of the BloomPool contract.
-     * @return The address of the BloomPool contract.
-     */
-    function bloomPool() external view returns (address);
-
-    /**
      * @notice Returns the name of the token.
      * @return The name of the token.
      */

@@ -118,9 +118,6 @@ library BloomErrors {
     /// @notice Emitted when the rwa price feed is out of date.
     error OutOfDate();
 
-    /// @notice Invalid Price Feed
-    error InvalidPriceFeed();
-
-    /// @notice Invalid Configuration
-    error InvalidConfiguration();
+    /// @notice Emitted when the price feed returns an invalid answer.
+    error InvalidAnswer();
 }

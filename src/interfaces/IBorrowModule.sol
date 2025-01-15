@@ -145,9 +145,6 @@ interface IBorrowModule {
     /// @notice Returns the address of the RWA token of the pool.
     function rwa() external view returns (address);
 
-    /// @notice Returns the address of the Bloom Oracle.
-    function bloomOracle() external view returns (address);
-
     /// @notice Returns the leverage of the borrow module.
     function leverage() external view returns (uint256);
 

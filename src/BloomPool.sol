@@ -82,7 +82,6 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
         _minOrderSize = minOrderSize_;
 
         uint8 decimals = IERC20Metadata(asset_).decimals();
-        _tby = new Tby(address(this), decimals);
 
         _assetDecimals = decimals;
         _lastMintedId = type(uint256).max;
@@ -121,7 +120,7 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
         uint256[] memory amounts = new uint256[](len);
 
         for (uint256 i = 0; i != len; ++i) {
-            amounts[i] = _fillOrder(lenders[i], tbyId, amount);
+            amounts[i] = _fillOrder(lenders[i], amount);
             if (amounts[i] == 0) break;
             lCollateral += amounts[i];
         }
@@ -210,7 +209,7 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
      * @param account The address of the order to fill
      * @param amount Amount of underlying assets of the order to fill
      */
-    function _fillOrder(address account, uint256 tbyId, uint256 amount) internal returns (uint256 lCollateral) {
+    function _fillOrder(address account, uint256 amount) internal returns (uint256 lCollateral) {
         require(account != address(0), Errors.ZeroAddress());
         if (amount == 0) return 0;
 
