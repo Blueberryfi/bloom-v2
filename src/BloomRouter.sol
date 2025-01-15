@@ -18,14 +18,15 @@ import {IERC20, IERC20Metadata} from "@openzeppelin/token/ERC20/extensions/IERC2
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {Tby} from "@bloom-v2/token/Tby.sol";
-import {IBorrowModule} from "@bloom-v2/interfaces/IBorrowModule.sol";
 import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
+import {IBloomRouter} from "@bloom-v2/interfaces/IBloomRouter.sol";
 
 /**
- * @title BloomPool
+ * @title BloomRouter
+ * @dev The BloomRouter is the entry point for all interactions with the Bloom Protocol and will route the user to the correct BloomPool.
  * @notice An RFQ protocol for permissionlessly being able to access RWA yield by connecting lenders to compliant borrowers.
  */
-contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
+contract BloomRouter is IBloomRouter, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using FpMath for uint256;
 
@@ -45,11 +46,11 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
     /// @notice Mapping of users to their open order amount.
     mapping(address => uint256) private _userOpenOrder;
 
-    /// @notice Mapping of borrow module addresses to whether they are active.
-    mapping(address => bool) private _borrowModules;
+    /// @notice Mapping of Bloom Pool addresses to whether they are active.
+    mapping(address => bool) private _bloomPools;
 
-    /// @notice Mapping of TBY ids to their corresponding borrow module.
-    mapping(uint256 => address) private _tbyModule;
+    /// @notice Mapping of TBY ids to their corresponding Bloom Pool.
+    mapping(uint256 => address) private _idToPool;
 
     /*///////////////////////////////////////////////////////////////
                         Constants & Immutables
@@ -65,8 +66,8 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
                             Modifiers    
     //////////////////////////////////////////////////////////////*/
 
-    modifier validModule(address module) {
-        if (!_borrowModules[module]) revert Errors.InvalidBorrowModule();
+    modifier validPool(address pool) {
+        if (!_bloomPools[pool]) revert Errors.InvalidPool();
         _;
     }
 
@@ -88,7 +89,7 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
                             Functions    
     //////////////////////////////////////////////////////////////*/
 
-    /// @inheritdoc IBloomPool
+    /// @inheritdoc IBloomRouter
     function lendOrder(uint256 amount) external override {
         _amountZeroCheck(amount);
         _minOrderSizeCheck(amount);
@@ -96,20 +97,20 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
         IERC20(_asset).safeTransferFrom(msg.sender, address(this), amount);
     }
 
-    /// @inheritdoc IBloomPool
-    function borrow(address[] memory lenders, address module, uint256 amount)
+    /// @inheritdoc IBloomRouter
+    function borrow(address[] memory lenders, address pool, uint256 amount)
         external
         payable
         override
-        validModule(module)
+        validPool(pool)
         nonReentrant
         returns (uint256 tbyId, uint256 lCollateral, uint256 bCollateral)
     {
         uint256 bloomsLastMintedId = _lastMintedId;
-        tbyId = IBorrowModule(module).calculateTbyId(bloomsLastMintedId);
+        tbyId = IBloomPool(pool).calculateTbyId(bloomsLastMintedId);
 
         if (tbyId > bloomsLastMintedId || bloomsLastMintedId == type(uint256).max) {
-            _tbyModule[tbyId] = module;
+            _idToPool[tbyId] = pool;
             _lastMintedId = tbyId;
         }
 
@@ -122,8 +123,8 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
             lCollateral += amounts[i];
         }
 
-        IERC20(_asset).forceApprove(module, lCollateral);
-        bCollateral = IBorrowModule(module).borrow(
+        IERC20(_asset).forceApprove(pool, lCollateral);
+        bCollateral = IBloomPool(pool).borrow(
             tbyId, 
             msg.sender, 
             lCollateral,
@@ -133,28 +134,28 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
         emit Borrowed(msg.sender, tbyId, lCollateral, bCollateral);
     }
 
-    /// @inheritdoc IBloomPool
+    /// @inheritdoc IBloomRouter
     function repay(uint256 tbyId) external override nonReentrant {
-        address module = _tbyModule[tbyId];
-        require(module != address(0), Errors.InvalidTby());
+        address pool = _idToPool[tbyId];
+        require(pool != address(0), Errors.InvalidTby());
         (uint256 rwaAmount, uint256 assetAmount, uint256 endRwaCollateral, uint256 endAssetCollateral) =
-            IBorrowModule(module).repay(tbyId);
+            IBloomPool(pool).repay(tbyId);
         emit Repaid(tbyId, msg.sender, rwaAmount, assetAmount, endRwaCollateral, endAssetCollateral);
     }
 
-    /// @inheritdoc IBloomPool
+    /// @inheritdoc IBloomRouter
     function redeemLender(uint256 tbyId, uint256 amount) external override returns (uint256 reward) {
-        reward = IBorrowModule(_tbyModule[tbyId]).withdrawLender(tbyId, msg.sender, amount);
+        reward = IBloomPool(_idToPool[tbyId]).withdrawLender(tbyId, msg.sender, amount);
         emit LenderRedeemed(msg.sender, tbyId, reward);
     }
 
-    /// @inheritdoc IBloomPool
+    /// @inheritdoc IBloomRouter
     function redeemBorrower(uint256 tbyId) external override returns (uint256 reward) {
-        reward = IBorrowModule(_tbyModule[tbyId]).withdrawBorrower(tbyId, msg.sender);
+        reward = IBloomPool(_idToPool[tbyId]).withdrawBorrower(tbyId, msg.sender);
         emit BorrowerRedeemed(msg.sender, tbyId, reward);
     }
 
-    /// @inheritdoc IBloomPool
+    /// @inheritdoc IBloomRouter
     function killOpenOrder(uint256 amount) external override {
         uint256 orderDepth = _userOpenOrder[msg.sender];
         _amountZeroCheck(amount);
@@ -172,20 +173,20 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Adds a borrow module to the pool.
-     * @param module The address of the borrow module to add.
+     * @notice Adds a bloom pool to the router.
+     * @param pool The address of the bloom pool to add.
      */
-    function addBorrowModule(address module) external onlyOwner {
-        _borrowModules[module] = true;
+    function addPool(address pool) external onlyOwner {
+        _bloomPools[pool] = true;
     }
 
     /**
-     * @notice Pauses a borrow module.
-     * @dev Pausing a borrow module prevents new borrows from being created, but does not affect the ability to repay existing borrows.
-     * @param module The address of the borrow module to pause.
+     * @notice Pauses a bloom pool.
+     * @dev Pausing a bloom pool prevents new borrows from being created, but does not affect the ability to repay existing borrows.
+     * @param pool The address of the bloom pool to pause.
      */
-    function pauseBorrowModule(address module) external onlyOwner {
-        _borrowModules[module] = false;
+    function pausePool(address pool) external onlyOwner {
+        _bloomPools[pool] = false;
     }
 
     /**
@@ -255,44 +256,44 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
                             View Functions    
     //////////////////////////////////////////////////////////////*/
 
-    /// @inheritdoc IBloomPool
+    /// @inheritdoc IBloomRouter
     function asset() external view override returns (address) {
         return _asset;
     }
 
-    /// @inheritdoc IBloomPool
+    /// @inheritdoc IBloomRouter
     function assetDecimals() external view override returns (uint8) {
         return _assetDecimals;
     }
 
-    /// @inheritdoc IBloomPool
+    /// @inheritdoc IBloomRouter
     function openDepth() external view override returns (uint256) {
         return _openDepth;
     }
 
-    /// @inheritdoc IBloomPool
+    /// @inheritdoc IBloomRouter
     function amountOpen(address account) external view override returns (uint256) {
         return _userOpenOrder[account];
     }
 
-    /// @inheritdoc IBloomPool
+    /// @inheritdoc IBloomRouter
     function minOrderSize() external view override returns (uint256) {
         return _minOrderSize;
     }
 
-    /// @inheritdoc IBloomPool
+    /// @inheritdoc IBloomRouter
     function lastMintedId() external view override returns (uint256) {
         return _lastMintedId;
     }
 
-    /// @inheritdoc IBloomPool
-    function isBorrowModule(address module) external view override returns (bool) {
-        return _borrowModules[module];
+    /// @inheritdoc IBloomRouter
+    function isPool(address pool) external view override returns (bool) {
+        return _bloomPools[pool];
     }
 
-    /// @inheritdoc IBloomPool
-    function tbyModule(uint256 id) external view override returns (address) {
-        return _tbyModule[id];
+    /// @inheritdoc IBloomRouter
+    function poolFromTbyId(uint256 id) external view override returns (address) {
+        return _idToPool[id];
     }
 
     /*///////////////////////////////////////////////////////////////

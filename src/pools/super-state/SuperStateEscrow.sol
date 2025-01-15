@@ -12,7 +12,7 @@ pragma solidity 0.8.27;
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
-import {BorrowModule} from "@bloom-v2/borrow-modules/BorrowModule.sol";
+import {BloomPool} from "@bloom-v2/pools/BloomPool.sol";
 import {IRedemptionIdle} from "@bloom-v2/interfaces/super-state/IRedemptionIdle.sol";
 import {ISuperstateToken} from "@bloom-v2/interfaces/super-state/ISuperstateToken.sol";
 import {ISuperStateEscrow} from "@bloom-v2/interfaces/super-state/ISuperStateEscrow.sol";
@@ -30,8 +30,8 @@ contract SuperStateEscrow is ISuperStateEscrow {
     /// @notice The address of the borrower associated with this escrow contract.
     address internal immutable _borrower;
 
-    /// @notice The address of the borrow module which created this escrow contract.
-    address internal immutable _borrowModule;
+    /// @notice The address of the Bloom Pool which created this escrow contract.
+    address internal immutable _bloomPool;
 
     /// @notice The address of the underlying asset.
     address internal immutable _asset;
@@ -46,9 +46,9 @@ contract SuperStateEscrow is ISuperStateEscrow {
                             Modifiers
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Modifier that ensures that only the borrow module can call a function.
-    modifier onlyBorrowModule() {
-        require(msg.sender == _borrowModule, Errors.InvalidSender());
+    /// @notice Modifier that ensures that only the Bloom Pool can call a function.
+    modifier onlyPool() {
+        require(msg.sender == _bloomPool, Errors.InvalidSender());
         _;
     }
 
@@ -63,11 +63,11 @@ contract SuperStateEscrow is ISuperStateEscrow {
     //////////////////////////////////////////////////////////////*/
 
     constructor(address borrower_, address redemptionContract_) {
-        BorrowModule module = BorrowModule(payable(msg.sender));
+        BloomPool pool = BloomPool(payable(msg.sender));
         _borrower = borrower_;
-        _borrowModule = address(module);
-        _asset = module.asset();
-        _superstateToken = module.rwa();
+        _bloomPool = address(pool);
+        _asset = pool.asset();
+        _superstateToken = pool.rwa();
         _redemptionContract = redemptionContract_;
     }
 
@@ -76,11 +76,11 @@ contract SuperStateEscrow is ISuperStateEscrow {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Allows the borrow module to purchase USTB on behalf of the borrower.
+     * @notice Allows the Bloom Pool to purchase USTB on behalf of the borrower.
      * @param totalCollateral The amount of stablecoin being used to purchase USTB.
      * @return The amount of USTB purchased.
      */
-    function executePurchase(uint256 totalCollateral) external onlyBorrowModule returns (uint256) {
+    function executePurchase(uint256 totalCollateral) external onlyPool returns (uint256) {
         IERC20 stablecoin = IERC20(_asset);
         stablecoin.approve(_superstateToken, totalCollateral);
         stablecoin.transferFrom(_borrower, address(this), totalCollateral);
@@ -88,13 +88,13 @@ contract SuperStateEscrow is ISuperStateEscrow {
     }
 
     /**
-     * @notice Allows the borrow module to repay the USTB on behalf of the borrower.
+     * @notice Allows the Bloom Pool to repay the USTB on behalf of the borrower.
      * @param ustbAmount The amount of USTB being repaid.
      * @return The amount of stablecoin received.
      */
-    function executeRepayment(uint256 ustbAmount) external onlyBorrowModule returns (uint256) {
+    function executeRepayment(uint256 ustbAmount) external onlyPool returns (uint256) {
         IERC20 ustb = IERC20(_superstateToken);
-        ustb.approve(_borrowModule, ustbAmount);
+        ustb.approve(_bloomPool, ustbAmount);
         return _redeem(ustbAmount);
     }
 
@@ -128,7 +128,7 @@ contract SuperStateEscrow is ISuperStateEscrow {
 
     /**
      * @notice Internal logic for redeeming USTB.
-     * @dev This function transfers the stablecoin back to the borrow module.
+     * @dev This function transfers the stablecoin back to the Bloom Pool.
      * @param amount The amount of USTB being redeemed.
      * @return The amount of stablecoin received.
      */
@@ -152,7 +152,7 @@ contract SuperStateEscrow is ISuperStateEscrow {
 
     /// @inheritdoc ISuperStateEscrow
     function borrowModule() external view returns (address) {
-        return _borrowModule;
+        return _bloomPool;
     }
 
     /// @inheritdoc ISuperStateEscrow

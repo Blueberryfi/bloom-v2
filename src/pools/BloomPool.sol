@@ -18,15 +18,14 @@ import {IERC20Metadata} from "@openzeppelin/token/ERC20/extensions/IERC20Metadat
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {Tby} from "@bloom-v2/token/Tby.sol";
+import {IBloomRouter} from "@bloom-v2/interfaces/IBloomRouter.sol";
 import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
-import {IBorrowModule} from "@bloom-v2/interfaces/IBorrowModule.sol";
-import {IBloomOracle} from "@bloom-v2/interfaces/IBloomOracle.sol";
 
 /**
- * @title BorrowModule
- * @notice Reusable logic for building borrow modules on the Bloom Protocol.
+ * @title BloomPool
+ * @notice Reusable logic for building BloomPools on the Bloom Protocol.
  */
-abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
+abstract contract BloomPool is IBloomPool, Tby, Ownable {
     using FpMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -46,7 +45,7 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
     /// @notice The duration of the next executed loan in seconds.
     uint256 internal _loanDuration;
 
-    /// @notice The last TBY id that was minted associated with the borrow module.
+    /// @notice The last TBY id that was minted associated with the borrow pool.
     uint256 internal _lastMintedId;
 
     /// @notice Mapping of borrower addresses to their KYC status.
@@ -77,8 +76,8 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
                         Constants & Immutables
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice The Bloom Pool contract.
-    IBloomPool internal immutable _bloomPool;
+    /// @notice The Bloom Router contract.
+    IBloomRouter internal immutable _bloomRouter;
 
     /// @notice The underlying asset of the pool.
     IERC20 internal immutable _asset;
@@ -112,13 +111,13 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
                             Modifiers    
     //////////////////////////////////////////////////////////////*/
 
-    modifier KycBorrower(address borrower) {
+    modifier kycCheck(address borrower) {
         require(isKYCedBorrower(borrower), Errors.KYCFailed());
         _;
     }
 
-    modifier onlyBloomPool() {
-        require(msg.sender == address(_bloomPool), Errors.NotBloom());
+    modifier onlyRouter() {
+        require(msg.sender == address(_bloomRouter), Errors.NotBloom());
         _;
     }
 
@@ -129,18 +128,18 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
     constructor(
         string memory name_,
         string memory symbolSuffix_,
-        address bloomPool_,
+        address router_,
         address rwa_,
         uint8 assetDecimals_,
         uint256 initLeverage,
         uint256 initSpread,
         address owner_
     ) Tby(name_, symbolSuffix_, assetDecimals_) Ownable(owner_) {
-        require(bloomPool_ != address(0) && rwa_ != address(0), Errors.ZeroAddress());
+        require(router_ != address(0) && rwa_ != address(0), Errors.ZeroAddress());
 
-        address asset_ = IBloomPool(bloomPool_).asset();
+        address asset_ = IBloomRouter(router_).asset();
         _asset = IERC20(asset_);
-        _bloomPool = IBloomPool(bloomPool_);
+        _bloomRouter = IBloomRouter(router_);
         _rwa = IERC20(rwa_);
 
         _assetDecimals = IERC20Metadata(asset_).decimals();
@@ -161,13 +160,13 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
                             External Functions    
     //////////////////////////////////////////////////////////////*/
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function borrow(uint256 tbyId, address borrower, uint256 amount, address[] memory lenders, uint256[] memory amounts)
         external
         payable
         override
-        onlyBloomPool
-        KycBorrower(borrower)
+        onlyRouter
+        kycCheck(borrower)
         returns (uint256 bCollateral)
     {
         bCollateral = amount.divWadUp(_leverage);
@@ -200,11 +199,11 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
         _idToTotalBorrowed[tbyId] += bCollateral;
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function repay(uint256 tbyId)
         external
         override
-        onlyBloomPool
+        onlyRouter
         returns (uint256 rwaAmount, uint256 assetAmount, uint256 endRwaCollateral, uint256 endAssetCollateral)
     {
         require(_idToMaturity[tbyId].end <= block.timestamp, Errors.TBYNotMatured());
@@ -243,11 +242,11 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
         return (rwaAmount, assetAmount, collateral.rwaAmount, collateral.assetAmount);
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function withdrawLender(uint256 tbyId, address lender, uint256 amount)
         external
         override
-        onlyBloomPool
+        onlyRouter
         returns (uint256 reward)
     {
         require(balanceOf(lender, tbyId) >= amount, Errors.InsufficientBalance());
@@ -260,11 +259,11 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
         _burn(lender, tbyId, amount);
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function withdrawBorrower(uint256 tbyId, address borrower)
         external
         override
-        onlyBloomPool
+        onlyRouter
         returns (uint256 reward)
     {
         uint256 totalBorrowAmount = _idToTotalBorrowed[tbyId];
@@ -281,13 +280,13 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
         _transferCollateral(tbyId, borrower, reward);
     }
 
-    /// @inheritdoc IBorrowModule
-    function calculateTbyId(uint256 bloomsLastMintedId) external onlyBloomPool returns (uint256 id) {
-        // Get the last minted TBY id from the borrow module
+    /// @inheritdoc IBloomPool
+    function calculateTbyId(uint256 bloomsLastMintedId) external onlyRouter returns (uint256 id) {
+        // Get the last minted TBY id from the pool
         id = _lastMintedId;
         TbyMaturity memory maturity = _idToMaturity[id];
 
-        // If the timestamp of the last minted TBYs (from this module) start is greater than 48 hours from now, this swap is for a new TBY Id.
+        // If the timestamp of the last minted TBYs (from this pool) start is greater than 48 hours from now, this swap is for a new TBY Id.
         if (block.timestamp > maturity.start + _swapBuffer) {
             // Last minted id is set to type(uint256).max, so we need to wrap around to 0 to start the first TBY.
             unchecked {
@@ -307,7 +306,7 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
 
     /**
      * @notice Sets the buffer time between the first and last borrow operation for a tbyId grouping.
-     * @dev Only the owner of the module can call this function.
+     * @dev Only the owner of the pool can call this function.
      * @param buffer The new buffer time.
      */
     function setSwapBuffer(uint256 buffer) external onlyOwner {
@@ -316,7 +315,7 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
 
     /**
      * @notice Sets the duration of the loan for the next minted TBY.
-     * @dev Only the owner of the module can call this function.
+     * @dev Only the owner of the pool can call this function.
      * @param duration The new duration of the loan.
      */
     function setLoanDuration(uint256 duration) external onlyOwner {
@@ -424,7 +423,7 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
 
     function _transferCollateral(address borrower, uint256 amount, uint256 bCollateral) internal returns (uint256) {
         IERC20(_asset).transferFrom(borrower, address(this), bCollateral);
-        IERC20(_asset).transferFrom(address(_bloomPool), address(this), amount);
+        IERC20(_asset).transferFrom(address(_bloomRouter), address(this), amount);
         return amount + bCollateral;
     }
 
@@ -443,7 +442,7 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
                             View Functions    
     //////////////////////////////////////////////////////////////*/
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function getRate(uint256 id) public view override returns (uint256) {
         TbyMaturity memory maturity = _idToMaturity[id];
         RwaPrice memory rwaPrice_ = _tbyIdToRwaPrice[id];
@@ -464,83 +463,83 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
         return _takeSpread(rate, rwaPrice_.spread);
     }
 
-    /// @inheritdoc IBorrowModule
-    function bloomPool() external view override returns (address) {
-        return address(_bloomPool);
+    /// @inheritdoc IBloomPool
+    function bloomRouter() external view override returns (address) {
+        return address(_bloomRouter);
     }
 
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function asset() external view override returns (address) {
         return address(_asset);
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function rwa() external view override returns (address) {
         return address(_rwa);
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function leverage() external view override returns (uint256) {
         return _leverage;
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function spread() external view override returns (uint256) {
         return _spread;
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function swapBuffer() external view override returns (uint256) {
         return _swapBuffer;
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function loanDuration() external view override returns (uint256) {
         return _loanDuration;
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function lastMintedId() external view override returns (uint256) {
         return _lastMintedId;
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function isKYCedBorrower(address account) public view override returns (bool) {
         return _borrowers[account];
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function rwaPrice(uint256 id) external view override returns (RwaPrice memory) {
         return _tbyIdToRwaPrice[id];
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function tbyCollateral(uint256 id) external view override returns (TbyCollateral memory) {
         return _idToCollateral[id];
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function borrowerAmount(address account, uint256 id) external view override returns (uint256) {
         return _borrowerAmounts[account][id];
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function totalBorrowed(uint256 id) external view override returns (uint256) {
         return _idToTotalBorrowed[id];
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function tbyMaturity(uint256 id) external view override returns (TbyMaturity memory) {
         return _idToMaturity[id];
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function lenderReturns(uint256 id) external view override returns (uint256) {
         return _tbyLenderReturns[id];
     }
 
-    /// @inheritdoc IBorrowModule
+    /// @inheritdoc IBloomPool
     function borrowerReturns(uint256 id) external view override returns (uint256) {
         return _tbyBorrowerReturns[id];
     }
@@ -553,9 +552,9 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
      * @notice Purchases the RWA tokens with the underlying asset collateral and stores them within the contract.
      * @dev This function needs to be implemented by the specific protocol that is being used to purchase the RWA tokens.
      *      Integration instructions:
-     *         1. Approval has already been set on the BloomPool for the borrow module to spend. This is where the source of funds are coming from.
-     *         2. The borrow module will need to swap the underlying asset collateral for the RWA token.
-     *         3. RWA token should be held within the borrow module's contract.
+     *         1. Approval has already been set on the BloomRouter for the borrow pool to spend. This is where the source of funds are coming from.
+     *         2. The borrow pool will need to swap the underlying asset collateral for the RWA token.
+     *         3. RWA token should be held within the borrow pool's contract.
      * @param borrower The address of the borrower.
      * @param totalCollateral The total amount of collateral being swapped in.
      * @return The amount of RWA tokens purchased.
@@ -566,9 +565,9 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
      * @notice Repays the RWA tokens to the issuer in exchange for the underlying asset collateral.
      * @dev This function needs to be implemented by the specific protocol that is being used to repay the RWA tokens.
      *      Integration instructions:
-     *         1. Source of funds are coming from the Borrow Module.
-     *         2. The borrow module will need to swap the RWA token for the underlying asset collateral.
-     *         3. Underlying asset should be held within the borrow module's contract.
+     *         1. Source of funds are coming from the Borrow pool.
+     *         2. The borrow pool will need to swap the RWA token for the underlying asset collateral.
+     *         3. Underlying asset should be held within the borrow pool's contract.
      * @param amount The amount of RWA tokens being repaid.
      * @return The amount of underlying asset collateral being received.
      */

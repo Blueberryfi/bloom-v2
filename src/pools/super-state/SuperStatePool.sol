@@ -13,11 +13,11 @@ import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
 import {AggregatorV3Interface} from "@bloom-v2/interfaces/AggregatorV3Interface.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
-import {BorrowModule} from "@bloom-v2/borrow-modules/BorrowModule.sol";
+import {BloomPool} from "@bloom-v2/pools/BloomPool.sol";
 import {SuperStateEscrow} from "./SuperStateEscrow.sol";
 import {IRedemptionIdle} from "@bloom-v2/interfaces/super-state/IRedemptionIdle.sol";
 
-contract SuperStateModule is BorrowModule {
+contract SuperStatePool is BloomPool {
     using FpMath for uint256;
 
     /*///////////////////////////////////////////////////////////////
@@ -85,7 +85,7 @@ contract SuperStateModule is BorrowModule {
         uint256 initSpread,
         address owner_,
         address redemptionContract
-    ) BorrowModule(name_, symbolSuffix_, bloomPool_, rwa_, assetDecimals_, initLeverage, initSpread, owner_) {
+    ) BloomPool(name_, symbolSuffix_, bloomPool_, rwa_, assetDecimals_, initLeverage, initSpread, owner_) {
         _redemptionContract = redemptionContract;
         _priceFeed = priceFeed_;
     }
@@ -118,7 +118,7 @@ contract SuperStateModule is BorrowModule {
                             Internal Functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @inheritdoc BorrowModule
+    /// @inheritdoc BloomPool
     function _purchaseRwa(address borrower, uint256 totalCollateral)
         internal
         virtual
@@ -139,7 +139,7 @@ contract SuperStateModule is BorrowModule {
         data.rwaAmount += rwaAmount;
     }
 
-    /// @inheritdoc BorrowModule
+    /// @inheritdoc BloomPool
     function _repayRwa(uint256 rwaAmount) internal virtual override returns (uint256 totalRepaid) {
         uint256 tbyId = _lastMintedId;
         bytes32[] storage hashedIds = _tbyIdToHashedIds[tbyId];
@@ -161,7 +161,7 @@ contract SuperStateModule is BorrowModule {
         }
     }
 
-    /// @inheritdoc BorrowModule
+    /// @inheritdoc BloomPool
     function _getRwaSwapAmount(uint256 tbyId) internal view virtual override returns (uint256 totalRwaAmount) {
         bytes32[] memory hashedIds = _tbyIdToHashedIds[tbyId];
         uint256 ustbBalance = _idToCollateral[tbyId].rwaAmount;

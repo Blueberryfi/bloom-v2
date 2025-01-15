@@ -9,183 +9,190 @@
 */
 pragma solidity 0.8.27;
 
-/**
- * @title IBloomPool
- * @notice Interface for Bloom V2's Pool
- */
 interface IBloomPool {
     /*///////////////////////////////////////////////////////////////
-                            Structs
+                                Structs
     //////////////////////////////////////////////////////////////*/
-
     /**
      * @notice Struct representing the collateral backed by a TBY.
      * @param assetAmount The amount of underlying asset collateral.
-     * @param currentRwaAmount The amount of rwa asset collateral at the current time.
-     * @param originalRwaAmount The amount of rwa asset collateral at the start of the TBY (will only be set at the end of the TBYs maturity for accounting purposes)
+     * @param rwaAmount The amount of rwa asset collateral at the current time.
      */
     struct TbyCollateral {
         uint128 assetAmount;
-        uint128 currentRwaAmount;
-        uint128 originalRwaAmount;
+        uint128 rwaAmount;
+    }
+
+    /**
+     * @notice Struct to store the price range for RWA assets at the time of TBY start and end times.
+     * @param startPrice The starting price of the RWA at the time of the borrower swap.
+     * @param endPrice  The ending price of the RWA at the time of the borrower swap.
+     * @param spread The spread for the TBY.
+     */
+    struct RwaPrice {
+        uint128 startPrice;
+        uint128 endPrice;
+        uint128 spread;
+    }
+
+    /**
+     * @notice Struct representing the maturity range of a TBY.
+     * @param start The start timestamp in seconds of the maturity range.
+     * @param end The end timestamp in seconds of the maturity range.
+     */
+    struct TbyMaturity {
+        uint128 start;
+        uint128 end;
     }
 
     /*///////////////////////////////////////////////////////////////
-                                Events
+                              Events
     //////////////////////////////////////////////////////////////*/
 
-    /**
-     * @notice Emitted when a user creates a lend order.
-     * @param account The address of the user who created the lend order.
-     * @param amount The amount of underlying assets lent.
-     */
-    event OrderCreated(address indexed account, uint256 amount);
+    /// @notice Emitted when a borrower is KYCed.
+    event BorrowerKyced(address indexed account, bool isKyced);
+
+    /// @notice Emitted when the spread is updated.
+    event SpreadSet(uint256 spread);
 
     /**
-     * @notice Emitted when a borrower fills a lend order.
-     * @param account The address of the user whos order was feeled.
-     * @param borrower The address of the borrower who filled the order.
-     * @param amount The amount of underlying assets filled in the order.
+     * @notice Emitted when the borrowers leverage amount is updated
+     * @param leverage The updated leverage amount for the borrower.
      */
-    event OrderFilled(address indexed account, address indexed borrower, uint256 amount);
+    event LeverageSet(uint256 leverage);
 
     /**
-     * @notice Emitted when a user kills a lend order.
-     * @param account The address of the user who created the lend order.
-     * @param amount The amount of underlying assets returned to the user.
+     * @notice Emitted when the maturity time for the next TBY is set.
+     * @param maturityLength The length of time in seconds that future TBY Ids will mature for.
      */
-    event OpenOrderKilled(address indexed account, uint256 amount);
-
-    /**
-     * @notice Emitted when a borrower borrows from a borrow module.
-     * @param borrower The address of the borrower who borrowed.
-     * @param tbyId The id of the TBY that was borrowed.
-     * @param lCollateral The amount of lender collateral borrowed.
-     * @param bCollateral The amount of borrower collateral posted to execute the transaction.
-     */
-    event Borrowed(address indexed borrower, uint256 indexed tbyId, uint256 lCollateral, uint256 bCollateral);
-
-    /**
-     * @notice Emitted when a borrower repays a TBY.
-     * @param tbyId The id of the TBY that was repaid.
-     * @param account The address of the account that repaid the loan.
-     * @param rwaAmount The amount of RWA assets repaid.
-     * @param assetAmount The amount of underlying assets received after repaying the RWA.
-     * @param endRwaCollateral The amount of RWA collateral backed by the TBY after repaying the RWA.
-     * @param endAssetCollateral The amount of underlying asset collateral backed by the TBY after repaying the RWA.
-     */
-    event Repaid(
-        uint256 indexed tbyId,
-        address indexed account,
-        uint256 rwaAmount,
-        uint256 assetAmount,
-        uint256 endRwaCollateral,
-        uint256 endAssetCollateral
-    );
-
-    /**
-     * @notice Emitted when a Lender redeems their share of rewards from a TBY.
-     * @param account The address of the lender redeeming.
-     * @param id The unique identifier of the TBY being redeemed.
-     * @param amount The amount of rewards being redeemed.
-     */
-    event LenderRedeemed(address indexed account, uint256 indexed id, uint256 amount);
-
-    /**
-     * @notice Emitted when a Borrower redeems their share of rewards from a TBY.
-     * @param account The address of the borrower redeeming.
-     * @param id The unique identifier of the TBY being redeemed.
-     * @param amount The amount of rewards being redeemed.
-     */
-    event BorrowerRedeemed(address indexed account, uint256 indexed id, uint256 amount);
+    event TbyMaturitySet(uint256 maturityLength);
 
     /*///////////////////////////////////////////////////////////////
-                            Write Functions
+                            Write Functions    
     //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Opens a lend order for a user.
-     * @dev Underlying assets will be transferred when executing the function.
-     * @dev Users have the right at anytime to cancel their lend order and withdraw their assets.
-     * @param amount Amount of underlying assets to lend.
-     */
-    function lendOrder(uint256 amount) external;
 
     /**
      * @notice Borrow lenders funds to purchase an RWA asset.
-     * @dev Depending on which borrowModule is inputed, there might be additional KYC requirements to interact with this function.
-     * @param lenders An array of lender addresses who have open lend orders.
-     * @param module The address of the borrowModule that will be used to execute the RWA token purchase.
+     * @dev This function will be called by the BloomRouter.
+     * @dev Module Developers need to implement the _purchaseRwa function in order to allow this function to execute successfully.
+     * @param tbyId The id of the TBY to borrow the assets for.
+     * @param borrower The address of the borrower.
      * @param amount The amount of underlying assets that the borrower is borrowering.
-     * @return tbyId The TBY Id that was minted to lenders.
-     * @return lCollateral Total amount of lender collateral borrowed.
+     * @param lenders The addresses of the lenders.
+     * @param amounts The amounts of the lenders.
      * @return bCollateral Total amount of borrower collateral posted to execute the transaction.
      */
-    function borrow(address[] memory lenders, address module, uint256 amount)
+    function borrow(uint256 tbyId, address borrower, uint256 amount, address[] memory lenders, uint256[] memory amounts) external payable returns (uint256 bCollateral);
+
+    /**
+     * @notice Repays ALL borrowers borrowed funds + collateral.
+     * @dev This function will be called by the BloomRouter.
+     * @dev Module Developers need to implement the _getRwaSwapAmount and _repayRwa functions in order to allow this function to execute successfully.
+     * @param tbyId The id of the TBY to repay the borrowed assets for.
+     * @return rwaAmount The amount of RWA assets repaid.
+     * @return assetAmount The amount of underlying assets received after repaying the RWA.
+     * @return endRwaCollateral The amount of RWA collateral backed by the TBY after repaying the RWA.
+     * @return endAssetCollateral The amount of underlying asset collateral backed by the TBY after repaying the RWA.
+     */
+    function repay(uint256 tbyId)
         external
-        payable
-        returns (uint256 tbyId, uint256 lCollateral, uint256 bCollateral);
+        returns (uint256 rwaAmount, uint256 assetAmount, uint256 endRwaCollateral, uint256 endAssetCollateral);
 
     /**
-     * @notice Repays all borrowed funds + collateral for a given TBY.
-     * @dev This function is a permissionless function that can be called by anyone. Due to positions being stored in the borrowModule,
-     *      borrower repayments can be executed by anyone.
-     * @dev This function will automatically repay the maximum amount possible for a given tbyId.
-     * @param tbyId The id of the TBY to repay.
+     * @notice Withdraws the lender's funds from the TBY.
+     * @dev This function will be called by the BloomRouter.
+     * @param tbyId The id of the TBY to withdraw the lender's funds from.
+     * @param lender The address of the lender to withdraw the funds for.
+     * @param amount The amount of funds to withdraw.
+     * @return reward The amount of rewards to be paid to the lender.
      */
-    function repay(uint256 tbyId) external;
+    function withdrawLender(uint256 tbyId, address lender, uint256 amount) external returns (uint256 reward);
 
     /**
-     * @notice Redeem the lender's share of rewards generated from the TBY at its maturity.
-     * @dev Rewards generated from TBYs are only claimable by the holder of the TBY at maturity.
-     * @param id The id of the TBY to redeem.
-     * @param amount The amount of TBYs to redeem.
-     * @return reward The amount of rewards for the lender.
+     * @notice Withdraws the borrower's funds from the TBY.
+     * @dev This function will be called by the BloomRouter.
+     * @param tbyId The id of the TBY to withdraw the borrower's funds from.
+     * @param borrower The address of the borrower to withdraw the funds for.
+     * @return reward The amount of rewards to be paid to the borrower.
      */
-    function redeemLender(uint256 id, uint256 amount) external returns (uint256 reward);
+    function withdrawBorrower(uint256 tbyId, address borrower) external returns (uint256 reward);
 
     /**
-     * @notice Redeem the borrowers's share of rewards generated from the TBY at its maturity.
-     * @dev Rewards generated from TBYs are only claimable by the holder of the TBY at maturity.
-     * @param id The id of the TBY to redeem.
-     * @return reward The amount of rewards for the borrower.
+     * @notice Calculates the TBY id to mint based on the last minted TBY id (in this module), the swap buffer, and the last minted TBY id from the Bloom Pool.
+     * @dev This function is called by the Bloom Pool.
+     * @dev If the last minted TBY id (from this module) was created 48 hours ago or more, a new TBY id is minted.
+     * @return id The id of the TBY to mint.
      */
-    function redeemBorrower(uint256 id) external returns (uint256 reward);
-
-    /**
-     * @notice Allows users to cancel their open lend order and withdraw their underlying assets.
-     * @param amount The amount of underlying assets to remove from your order.
-     */
-    function killOpenOrder(uint256 amount) external;
+    function calculateTbyId(uint256 bloomsLastMintedId) external returns (uint256 id);
 
     /*///////////////////////////////////////////////////////////////
-                            View Functions
+                            View Functions    
     //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Returns the current rate of the TBY in terms of USD.
+     * @dev The rate is returned as a fixed point number with 18 decimals.
+     * @param id The id of the TBY.
+     */
+    function getRate(uint256 id) external view returns (uint256);
+
+    /// @notice Returns the address of the Bloom Pool.
+    function bloomRouter() external view returns (address);
 
     /// @notice Returns the address of the underlying asset of the pool.
     function asset() external view returns (address);
 
-    /// @notice Returns the number of decimals of the underlying asset.
-    function assetDecimals() external view returns (uint8);
+    /// @notice Returns the address of the RWA token of the pool.
+    function rwa() external view returns (address);
 
-    /// @notice Returns the current total depth of open orders.
-    function openDepth() external view returns (uint256);
+    /// @notice Returns the leverage of the borrow module.
+    function leverage() external view returns (uint256);
 
-    /**
-     * @notice Returns the total amount of underlying assets in open orders for a users account.
-     * @param account The address of the user to get the number of open orders for.
-     */
-    function amountOpen(address account) external view returns (uint256);
+    /// @notice Returns the spread between the TBY rate and the RWA rate.
+    function spread() external view returns (uint256);
 
-    /// @notice The minimum size of an order.
-    function minOrderSize() external view returns (uint256);
+    /// @notice Returns the swap buffer for the borrow module.
+    function swapBuffer() external view returns (uint256);
 
-    /// @notice Returns the last minted TBY id.
+    /// @notice Returns the loan duration for the borrow module.
+    function loanDuration() external view returns (uint256);
+
+    /// @notice Returns the last TBY id that was minted associated with the borrow module.
     function lastMintedId() external view returns (uint256);
 
-    /// @notice Returns whether a given address is a borrowModule.
-    function isBorrowModule(address module) external view returns (bool);
+    /**
+     * @notice Returns if the user is a valid borrower.
+     * @param account The address of the user to check.
+     * @return bool True if the user is a valid borrower.
+     */
+    function isKYCedBorrower(address account) external view returns (bool);
 
-    /// @notice Returns the address of the borrowModule for a given TBY id.
-    function tbyModule(uint256 id) external view returns (address);
+    /**
+     * @notice Returns the RWA price ranges for a given TBY id.
+     * @param tbyId The id of the TBY to get the RWA price for.
+     * @return RwaPrice The RWA price struct for the TBY.
+     */
+    function rwaPrice(uint256 tbyId) external view returns (RwaPrice memory);
+
+    /**
+     * @notice Returns the collateral for a given TBY id.
+     * @param tbyId The id of the TBY to get the collateral for.
+     * @return TbyCollateral The collateral for the TBY.
+     */
+    function tbyCollateral(uint256 tbyId) external view returns (TbyCollateral memory);
+
+    /// @notice Returns the total amount of assets a borrower has contributed to for a given Tby ID.
+    function borrowerAmount(address account, uint256 id) external view returns (uint256);
+
+    /// @notice Returns the total amount of assets all the borrowers have contributed to for a given Tby ID.
+    function totalBorrowed(uint256 id) external view returns (uint256);
+
+    /// @notice Returns the TbyMaturity struct containing the start and end timestamps of a given Tby ID.
+    function tbyMaturity(uint256 id) external view returns (TbyMaturity memory);
+
+    /// @notice Returns the total amount of assets currently available for lender's to redeem for a given Tby ID.
+    function lenderReturns(uint256 id) external view returns (uint256);
+
+    /// @notice Returns the total amount of assets currently available for borrower's to redeem for a given Tby ID.
+    function borrowerReturns(uint256 id) external view returns (uint256);
 }

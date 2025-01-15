@@ -40,7 +40,7 @@ library BloomErrors {
     error TotalBorrowedZero();
 
     /*///////////////////////////////////////////////////////////////
-                            Orderbook Errors    
+                            Router Errors    
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Emitted when an operation is trying to access more liquidity than there is depth.
@@ -56,8 +56,8 @@ library BloomErrors {
     /// @notice Emitted when a borrower tries to kill a match order that does not exist.
     error MatchOrderNotFound();
 
-    /// @notice Emitted when a borrower tries to borrow from an invalid borrow module. (Could be paused or not added)
-    error InvalidBorrowModule();
+    /// @notice Emitted when a borrower tries to borrow from an invalid bloom pool. (Could be paused or not added)
+    error InvalidPool();
 
     /// @notice Emitted when a borrower tries to borrow an amount that is greater than the total collateral.
     error ExceedsSlippage();
