@@ -250,6 +250,7 @@ abstract contract BorrowModule is IBorrowModule, Tby, Ownable {
         onlyBloomPool
         returns (uint256 reward)
     {
+        require(balanceOf(lender, tbyId) >= amount, Errors.InsufficientBalance());
         uint256 totalSupply = totalSupply(tbyId);
         reward = (_tbyLenderReturns[tbyId] * amount) / totalSupply;
         require(reward > 0, Errors.ZeroRewards());

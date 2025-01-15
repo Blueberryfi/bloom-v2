@@ -55,9 +55,6 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
                         Constants & Immutables
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Instance of the Tby token.
-    Tby private immutable _tby;
-
     /// @notice Address of the underlying asset of the Pool.
     address private immutable _asset;
 
@@ -147,7 +144,6 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
 
     /// @inheritdoc IBloomPool
     function redeemLender(uint256 tbyId, uint256 amount) external override returns (uint256 reward) {
-        require(_tby.balanceOf(msg.sender, tbyId) >= amount, Errors.InsufficientBalance());
         reward = IBorrowModule(_tbyModule[tbyId]).withdrawLender(tbyId, msg.sender, amount);
         emit LenderRedeemed(msg.sender, tbyId, reward);
     }
@@ -258,11 +254,6 @@ contract BloomPool is IBloomPool, Ownable2Step, ReentrancyGuard {
     /*///////////////////////////////////////////////////////////////
                             View Functions    
     //////////////////////////////////////////////////////////////*/
-
-    /// @inheritdoc IBloomPool
-    function tby() external view override returns (address) {
-        return address(_tby);
-    }
 
     /// @inheritdoc IBloomPool
     function asset() external view override returns (address) {

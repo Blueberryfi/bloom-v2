@@ -162,9 +162,6 @@ interface IBloomPool {
                             View Functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Returns the address of the tby token.
-    function tby() external view returns (address);
-
     /// @notice Returns the address of the underlying asset of the pool.
     function asset() external view returns (address);
 
