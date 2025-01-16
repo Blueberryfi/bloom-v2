@@ -1,223 +1,189 @@
-// // SPDX-License-Identifier: MIT
-// /*
-// ██████╗░██╗░░░░░░█████╗░░█████╗░███╗░░░███╗
-// ██╔══██╗██║░░░░░██╔══██╗██╔══██╗████╗░████║
-// ██████╦╝██║░░░░░██║░░██║██║░░██║██╔████╔██║
-// ██╔══██╗██║░░░░░██║░░██║██║░░██║██║╚██╔╝██║
-// ██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
-// ╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
-// */
-// pragma solidity 0.8.27;
+// SPDX-License-Identifier: MIT
+/*
+██████╗░██╗░░░░░░█████╗░░█████╗░███╗░░░███╗
+██╔══██╗██║░░░░░██╔══██╗██╔══██╗████╗░████║
+██████╦╝██║░░░░░██║░░██║██║░░██║██╔████╔██║
+██╔══██╗██║░░░░░██║░░██║██║░░██║██║╚██╔╝██║
+██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
+╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
+*/
+pragma solidity 0.8.27;
 
-// import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
-// import {ERC1155} from "@solady/tokens/ERC1155.sol";
+import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
+import {ERC1155} from "@solady/tokens/ERC1155.sol";
 
-// import {BloomPool} from "@bloom-v2/BloomPool.sol";
-// import {BloomOracle} from "@bloom-v2/oracle/BloomOracle.sol";
-// import {ChainlinkOracle} from "@bloom-v2/oracle/chainlink/ChainlinkOracle.sol";
-// import {CrossAdapter} from "@bloom-v2/oracle/CrossAdapter.sol";
+import {BloomRouter} from "@bloom-v2/BloomRouter.sol";
 
-// import {BloomTestSetup} from "../BloomTestSetup.t.sol";
-// import {MockBorrowModule} from "../mocks/MockBorrowModule.sol";
-// import {MockPriceFeed} from "../mocks/MockPriceFeed.sol";
+import {BloomTestSetup} from "../BloomTestSetup.t.sol";
+import {MockBloomPool} from "../mocks/MockBloomPool.sol";
+import {MockPriceFeed} from "../mocks/MockPriceFeed.sol";
 
-// contract BorrowUnitTests is BloomTestSetup {
-//     using FpMath for uint256;
+contract BorrowUnitTests is BloomTestSetup {
+    using FpMath for uint256;
 
-//     MockBorrowModule internal mockBorrowModule;
-//     BloomOracle internal bloomOracle;
-//     MockPriceFeed internal usdcPriceFeed;
+    MockBloomPool internal mockBloomPool;
 
-//     function setUp() public override {
-//         super.setUp();
+    function setUp() public override {
+        super.setUp();
 
-//         // deploy Bloom Oracle
-//         bloomOracle = new BloomOracle(address(owner));
+        // deploy mock borrow module
+        mockBloomPool = new MockBloomPool(
+            "Test", "TEST", address(bloomRouter), address(billToken), address(priceFeed), 6, 50e18, 0.995e18, owner
+        );
 
-//         vm.startPrank(owner);
-//         usdcPriceFeed = new MockPriceFeed(8);
-//         usdcPriceFeed.setLatestRoundData(1, 1e8, 0, block.timestamp, 1);
-//         vm.stopPrank();
+        vm.prank(owner);
+        bloomRouter.addPool(address(mockBloomPool));
+    }
 
-//         ChainlinkOracle chainlinkOracle1 =
-//             new ChainlinkOracle(address(billToken), address(usd), address(priceFeed), 1 days);
+    function testBorrowSingleBorrower() public {
+        uint256 amount = 100e6;
 
-//         ChainlinkOracle chainlinkOracle2 =
-//             new ChainlinkOracle(address(stable), address(usd), address(usdcPriceFeed), 1 days);
+        _createLendOrder(alice, amount);
+        lenders.push(alice);
 
-//         CrossAdapter crossAdapter = new CrossAdapter(
-//             address(billToken), address(usd), address(stable), address(chainlinkOracle1), address(chainlinkOracle2)
-//         );
+        uint256 borrowAmount = 2e6;
+        stable.mint(borrower1, borrowAmount);
 
-//         vm.startPrank(owner);
-//         bloomOracle.setConfig(address(billToken), address(usd), address(chainlinkOracle1));
-//         bloomOracle.setConfig(address(stable), address(usd), address(chainlinkOracle2));
-//         bloomOracle.setConfig(address(billToken), address(stable), address(crossAdapter));
+        vm.startPrank(owner);
+        mockBloomPool.whitelistBorrower(borrower1, true);
+        vm.stopPrank();
 
-//         // deploy mock borrow module
-//         mockBorrowModule =
-//             new MockBorrowModule(address(bloomPool), address(bloomOracle), address(billToken), 50e18, 0.995e18, owner);
+        vm.startPrank(borrower1);
+        stable.approve(address(mockBloomPool), borrowAmount);
+        bloomRouter.borrow(lenders, address(mockBloomPool), amount);
 
-//         bloomPool.addBorrowModule(address(mockBorrowModule));
-//     }
+        uint256 lastMintedTby = mockBloomPool.lastMintedId();
 
-//     function testBorrowSingleBorrower() public {
-//         uint256 amount = 100e6;
+        assertEq(bloomRouter.lastMintedId(), lastMintedTby);
+        assertEq(billToken.balanceOf(address(mockBloomPool)), 1.02e18);
+        assertEq(stable.balanceOf(address(mockBloomPool)), 0);
 
-//         _createLendOrder(alice, amount);
-//         lenders.push(alice);
+        // Assert that the state variables are updated correctly
+        assertEq(mockBloomPool.tbyCollateral(lastMintedTby).rwaAmount, 1.02e18);
+        assertEq(mockBloomPool.rwaPrice(lastMintedTby).startPrice, 100e18);
+        assertEq(mockBloomPool.tbyMaturity(lastMintedTby).start, block.timestamp);
+        assertEq(mockBloomPool.tbyMaturity(lastMintedTby).end, block.timestamp + 180 days);
+    }
 
-//         uint256 borrowAmount = 2e6;
-//         stable.mint(borrower1, borrowAmount);
+    function testRepaySingleBorrower() public {
+        uint256 amount = 100e6;
 
-//         vm.startPrank(owner);
-//         mockBorrowModule.whitelistBorrower(borrower1, true);
-//         vm.stopPrank();
+        _createLendOrder(alice, amount);
+        lenders.push(alice);
 
-//         vm.startPrank(borrower1);
-//         stable.approve(address(mockBorrowModule), borrowAmount);
-//         bloomPool.borrow(lenders, address(mockBorrowModule), amount);
+        uint256 borrowAmount = 2e6;
+        stable.mint(borrower1, borrowAmount);
 
-//         uint256 lastMintedTby = mockBorrowModule.lastMintedId();
+        vm.startPrank(owner);
+        mockBloomPool.whitelistBorrower(borrower1, true);
+        vm.stopPrank();
 
-//         assertEq(bloomPool.lastMintedId(), lastMintedTby);
-//         assertEq(billToken.balanceOf(address(mockBorrowModule)), 1.02e18);
-//         assertEq(stable.balanceOf(address(mockBorrowModule)), 0);
+        vm.startPrank(borrower1);
+        stable.approve(address(mockBloomPool), borrowAmount);
+        bloomRouter.borrow(lenders, address(mockBloomPool), amount);
 
-//         // Assert that the state variables are updated correctly
-//         assertEq(mockBorrowModule.tbyCollateral(lastMintedTby).rwaAmount, 1.02e18);
-//         assertEq(mockBorrowModule.rwaPrice(lastMintedTby).startPrice, 100e18);
-//         assertEq(mockBorrowModule.tbyMaturity(lastMintedTby).start, block.timestamp);
-//         assertEq(mockBorrowModule.tbyMaturity(lastMintedTby).end, block.timestamp + 180 days);
-//     }
+        // 5% increase in price ( borrower should earn .125% yield; lender should earn 4.975% yield)
+        uint256 expectedLenderReturn = 104.975e6;
+        uint256 expectedBorrowerReturn = 2.125e6;
+        _skipAndUpdatePrice(180 days, 105e8, 1);
 
-//     function testRepaySingleBorrower() public {
-//         uint256 amount = 100e6;
+        // validate the rate
+        assertEq(mockBloomPool.getRate(0), 1.04975e18);
 
-//         _createLendOrder(alice, amount);
-//         lenders.push(alice);
+        // repay the borrow
+        vm.startPrank(borrower1);
+        bloomRouter.repay(0);
 
-//         uint256 borrowAmount = 2e6;
-//         stable.mint(borrower1, borrowAmount);
+        // validate balances
+        assertEq(stable.balanceOf(address(mockBloomPool)), 107.1e6); // 102 USDC * 5% increase = 107.1 USDC
+        assertEq(billToken.balanceOf(address(mockBloomPool)), 0);
 
-//         vm.startPrank(owner);
-//         mockBorrowModule.whitelistBorrower(borrower1, true);
-//         vm.stopPrank();
+        // validate state variables
+        assertEq(mockBloomPool.tbyCollateral(0).rwaAmount, 0);
+        assertEq(mockBloomPool.tbyCollateral(0).assetAmount, 107.1e6);
+        assertEq(mockBloomPool.rwaPrice(0).startPrice, 100e18);
+        assertEq(mockBloomPool.rwaPrice(0).endPrice, 105e18);
 
-//         vm.startPrank(borrower1);
-//         stable.approve(address(mockBorrowModule), borrowAmount);
-//         bloomPool.borrow(lenders, address(mockBorrowModule), amount);
+        // validate lender and borrower returns
+        assertEq(mockBloomPool.lenderReturns(0), expectedLenderReturn);
+        assertEq(mockBloomPool.borrowerReturns(0), expectedBorrowerReturn);
 
-//         // 5% increase in price ( borrower should earn .125% yield; lender should earn 4.975% yield)
-//         uint256 expectedLenderReturn = 104.975e6;
-//         uint256 expectedBorrowerReturn = 2.125e6;
-//         _skipAndUpdatePrice(180 days, 105e8, 1);
+        // Redeem the lender and borrowers funds
+        vm.startPrank(alice);
+        mockBloomPool.setApprovalForAll(address(bloomRouter), true);
+        bloomRouter.redeemLender(0, mockBloomPool.balanceOf(address(alice), 0));
+        vm.startPrank(borrower1);
+        bloomRouter.redeemBorrower(0);
 
-//         vm.startPrank(owner);
-//         usdcPriceFeed.setLatestRoundData(2, 1e8, 0, block.timestamp, 1);
-//         vm.stopPrank();
+        assertEq(stable.balanceOf(alice), expectedLenderReturn);
+        assertEq(stable.balanceOf(borrower1), expectedBorrowerReturn);
 
-//         // validate the rate
-//         assertEq(mockBorrowModule.getRate(0), 1.04975e18);
+        assertEq(mockBloomPool.lenderReturns(0), 0);
+        assertEq(mockBloomPool.borrowerReturns(0), 0);
+    }
 
-//         // repay the borrow
-//         vm.startPrank(borrower1);
-//         bloomPool.repay(0);
+    function testMultipleBorrowerModules() public {
+        vm.startPrank(owner);
+        MockBloomPool mockBloomPool2 = new MockBloomPool(
+            "Test 2", "TEST-2", address(bloomRouter), address(billToken), address(priceFeed), 6, 50e18, 0.995e18, owner
+        );
 
-//         // validate balances
-//         assertEq(stable.balanceOf(address(mockBorrowModule)), 107.1e6); // 102 USDC * 5% increase = 107.1 USDC
-//         assertEq(billToken.balanceOf(address(mockBorrowModule)), 0);
+        bloomRouter.addPool(address(mockBloomPool2));
 
-//         // validate state variables
-//         assertEq(mockBorrowModule.tbyCollateral(0).rwaAmount, 0);
-//         assertEq(mockBorrowModule.tbyCollateral(0).assetAmount, 107.1e6);
-//         assertEq(mockBorrowModule.rwaPrice(0).startPrice, 100e18);
-//         assertEq(mockBorrowModule.rwaPrice(0).endPrice, 105e18);
+        MockBloomPool mockBloomPool3 = new MockBloomPool(
+            "Test 3", "TEST-3", address(bloomRouter), address(billToken), address(priceFeed), 6, 50e18, 0.995e18, owner
+        );
 
-//         // validate lender and borrower returns
-//         assertEq(mockBorrowModule.lenderReturns(0), expectedLenderReturn);
-//         assertEq(mockBorrowModule.borrowerReturns(0), expectedBorrowerReturn);
+        bloomRouter.addPool(address(mockBloomPool3));
 
-//         // Redeem the lender and borrowers funds
-//         vm.startPrank(alice);
-//         ERC1155(tby).setApprovalForAll(address(bloomPool), true);
-//         bloomPool.redeemLender(0, tby.balanceOf(address(alice), 0));
-//         vm.startPrank(borrower1);
-//         bloomPool.redeemBorrower(0);
+        uint256 amount = 300e6;
 
-//         assertEq(stable.balanceOf(alice), expectedLenderReturn);
-//         assertEq(stable.balanceOf(borrower1), expectedBorrowerReturn);
+        _createLendOrder(alice, amount);
+        lenders.push(alice);
 
-//         assertEq(mockBorrowModule.lenderReturns(0), 0);
-//         assertEq(mockBorrowModule.borrowerReturns(0), 0);
-//     }
+        vm.startPrank(owner);
+        mockBloomPool.whitelistBorrower(borrower1, true);
+        mockBloomPool2.whitelistBorrower(borrower1, true);
+        mockBloomPool3.whitelistBorrower(borrower1, true);
 
-//     function testMultipleBorrowerModules() public {
-//         vm.startPrank(owner);
-//         MockBorrowModule mockBorrowModule2 =
-//             new MockBorrowModule(address(bloomPool), address(bloomOracle), address(billToken), 50e18, 0.995e18, owner);
+        vm.startPrank(borrower1);
+        stable.approve(address(mockBloomPool), amount);
+        stable.approve(address(mockBloomPool2), amount);
+        stable.approve(address(mockBloomPool3), amount);
+        stable.mint(borrower1, 1000e6);
 
-//         bloomPool.addBorrowModule(address(mockBorrowModule2));
+        bloomRouter.borrow(lenders, address(mockBloomPool), 50e6);
+        bloomRouter.borrow(lenders, address(mockBloomPool2), 50e6);
+        bloomRouter.borrow(lenders, address(mockBloomPool3), 50e6);
 
-//         MockBorrowModule mockBorrowModule3 =
-//             new MockBorrowModule(address(bloomPool), address(bloomOracle), address(billToken), 50e18, 0.995e18, owner);
+        assertEq(bloomRouter.poolFromTbyId(0), address(mockBloomPool));
+        assertEq(bloomRouter.poolFromTbyId(1), address(mockBloomPool2));
+        assertEq(bloomRouter.poolFromTbyId(2), address(mockBloomPool3));
 
-//         bloomPool.addBorrowModule(address(mockBorrowModule3));
+        assertEq(mockBloomPool.balanceOf(alice, 0), 50e6);
+        assertEq(mockBloomPool2.balanceOf(alice, 1), 50e6);
+        assertEq(mockBloomPool3.balanceOf(alice, 2), 50e6);
 
-//         uint256 amount = 300e6;
+        assertEq(mockBloomPool.borrowerAmount(borrower1, 0), 1e6);
+        assertEq(mockBloomPool2.borrowerAmount(borrower1, 1), 1e6);
+        assertEq(mockBloomPool3.borrowerAmount(borrower1, 2), 1e6);
 
-//         _createLendOrder(alice, amount);
-//         lenders.push(alice);
+        _skipAndUpdatePrice(1 days, 100e8, 1);
 
-//         vm.startPrank(owner);
-//         mockBorrowModule.whitelistBorrower(borrower1, true);
-//         mockBorrowModule2.whitelistBorrower(borrower1, true);
-//         mockBorrowModule3.whitelistBorrower(borrower1, true);
+        vm.startPrank(borrower1);
+        (uint256 tbyId,,) = bloomRouter.borrow(lenders, address(mockBloomPool2), 50e6);
 
-//         vm.startPrank(borrower1);
-//         stable.approve(address(mockBorrowModule), amount);
-//         stable.approve(address(mockBorrowModule2), amount);
-//         stable.approve(address(mockBorrowModule3), amount);
-//         stable.mint(borrower1, 1000e6);
+        assertEq(tbyId, 1);
+        assertEq(mockBloomPool2.balanceOf(alice, 1), 100e6);
+        assertEq(mockBloomPool2.borrowerAmount(borrower1, 1), 2e6);
 
-//         bloomPool.borrow(lenders, address(mockBorrowModule), 50e6);
-//         bloomPool.borrow(lenders, address(mockBorrowModule2), 50e6);
-//         bloomPool.borrow(lenders, address(mockBorrowModule3), 50e6);
+        _skipAndUpdatePrice(2 days, 105e8, 2);
 
-//         assertEq(bloomPool.tbyModule(0), address(mockBorrowModule));
-//         assertEq(bloomPool.tbyModule(1), address(mockBorrowModule2));
-//         assertEq(bloomPool.tbyModule(2), address(mockBorrowModule3));
+        vm.startPrank(borrower1);
+        (tbyId,,) = bloomRouter.borrow(lenders, address(mockBloomPool), 50e6);
 
-//         assertEq(tby.balanceOf(alice, 0), 50e6);
-//         assertEq(tby.balanceOf(alice, 1), 50e6);
-//         assertEq(tby.balanceOf(alice, 2), 50e6);
-
-//         assertEq(mockBorrowModule.borrowerAmount(borrower1, 0), 1e6);
-//         assertEq(mockBorrowModule2.borrowerAmount(borrower1, 1), 1e6);
-//         assertEq(mockBorrowModule3.borrowerAmount(borrower1, 2), 1e6);
-
-//         _skipAndUpdatePrice(1 days, 100e8, 1);
-//         vm.startPrank(owner);
-//         usdcPriceFeed.setLatestRoundData(2, 1e8, 0, block.timestamp, 1);
-//         vm.stopPrank();
-
-//         vm.startPrank(borrower1);
-//         (uint256 tbyId,,) = bloomPool.borrow(lenders, address(mockBorrowModule2), 50e6);
-
-//         assertEq(tbyId, 1);
-//         assertEq(tby.balanceOf(alice, 1), 100e6);
-//         assertEq(mockBorrowModule2.borrowerAmount(borrower1, 1), 2e6);
-
-//         _skipAndUpdatePrice(2 days, 105e8, 2);
-//         vm.startPrank(owner);
-//         usdcPriceFeed.setLatestRoundData(3, 1e8, 0, block.timestamp, 1);
-//         vm.stopPrank();
-
-//         vm.startPrank(borrower1);
-//         (tbyId,,) = bloomPool.borrow(lenders, address(mockBorrowModule), 50e6);
-
-//         assertEq(tbyId, 3);
-//         assertEq(tby.balanceOf(alice, 3), 50e6);
-//         assertEq(mockBorrowModule.borrowerAmount(borrower1, 3), 1e6);
-//     }
-// }
+        assertEq(tbyId, 3);
+        assertEq(mockBloomPool.balanceOf(alice, 3), 50e6);
+        assertEq(mockBloomPool.borrowerAmount(borrower1, 3), 1e6);
+    }
+}
