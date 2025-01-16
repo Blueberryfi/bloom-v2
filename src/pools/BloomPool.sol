@@ -20,11 +20,12 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {Tby} from "@bloom-v2/token/Tby.sol";
 import {IBloomRouter} from "@bloom-v2/interfaces/IBloomRouter.sol";
 import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
-
+import "forge-std/console.sol";
 /**
  * @title BloomPool
  * @notice Reusable logic for building BloomPools on the Bloom Protocol.
  */
+
 abstract contract BloomPool is IBloomPool, Tby, Ownable {
     using FpMath for uint256;
     using SafeERC20 for IERC20;
@@ -187,12 +188,10 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
         TbyCollateral storage collateral = _idToCollateral[tbyId];
         collateral.rwaAmount += uint128(rwaAmount);
 
-        uint256 assetDecimals = _assetDecimals;
-        uint256 rwaDecimals = _rwaDecimals;
+        uint256 scaledCollateral = totalCollateral * (10 ** (18 - _assetDecimals));
+        uint256 scaledRwaAmount = rwaAmount * (10 ** (18 - _rwaDecimals));
+        uint256 rwaPriceFixedPoint = scaledCollateral.divWad(scaledRwaAmount);
 
-        uint256 rwaPriceFixedPoint = assetDecimals > rwaDecimals
-            ? (totalCollateral / (10 ** (assetDecimals - rwaDecimals))).divWad(rwaAmount)
-            : (totalCollateral * (10 ** (rwaDecimals - assetDecimals))).divWad(rwaAmount);
         _setStartPrice(tbyId, rwaPriceFixedPoint, rwaAmount, collateral.rwaAmount);
 
         _borrowerAmounts[borrower][tbyId] += bCollateral;
@@ -260,12 +259,7 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
     }
 
     /// @inheritdoc IBloomPool
-    function withdrawBorrower(uint256 tbyId, address borrower)
-        external
-        override
-        onlyRouter
-        returns (uint256 reward)
-    {
+    function withdrawBorrower(uint256 tbyId, address borrower) external override onlyRouter returns (uint256 reward) {
         uint256 totalBorrowAmount = _idToTotalBorrowed[tbyId];
         uint256 borrowAmount = _borrowerAmounts[borrower][tbyId];
         require(totalBorrowAmount != 0, Errors.TotalBorrowedZero());
@@ -438,36 +432,92 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
         _asset.safeTransfer(recipient, amount);
     }
 
+    /**
+     * @notice Calculates the rate of the TBY.
+     * @dev This function is reused within the batchValue and getRate functions.
+     * @param id The id of the TBY to calculate the rate for.
+     * @param timestamp The timestamp for when the rate is being calculated
+     *                  (will always be the current excution timestamp, but is passed in for gas optimization).
+     * @param cachedRwaPrice The cached RWA price. This is used to avoid extra calls to the RWA price oracle.
+     * @return rate The rate of the TBY.
+     * @return valid Whether the rate calculation was successful.
+     */
+    function _calculateRate(uint256 id, uint256 timestamp, uint256 cachedRwaPrice)
+        internal
+        view
+        returns (uint256 rate, bool valid)
+    {
+        RwaPrice memory rwaPrice_ = _tbyIdToRwaPrice[id];
+        if (rwaPrice_.startPrice == 0) return (0, false);
+
+        if (timestamp <= _idToMaturity[id].start) {
+            return (FpMath.WAD, true);
+        }
+
+        uint256 price = rwaPrice_.endPrice;
+        if (price == 0) {
+            price = cachedRwaPrice == 0 ? _getRwaPrice() : cachedRwaPrice;
+        }
+
+        rate = uint256(price).divWad(uint256(rwaPrice_.startPrice));
+        rate = _takeSpread(rate, rwaPrice_.spread);
+        return (rate, true);
+    }
+
     /*///////////////////////////////////////////////////////////////
                             View Functions    
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBloomPool
     function getRate(uint256 id) public view override returns (uint256) {
-        TbyMaturity memory maturity = _idToMaturity[id];
-        RwaPrice memory rwaPrice_ = _tbyIdToRwaPrice[id];
+        (uint256 rate, bool valid) = _calculateRate(id, block.timestamp, 0);
+        if (!valid) revert Errors.InvalidTby();
+        return rate;
+    }
 
-        if (rwaPrice_.startPrice == 0) {
-            revert Errors.InvalidTby();
-        }
-        // If the TBY has not started accruing interest, return 1e18.
-        if (block.timestamp <= maturity.start) {
-            return FpMath.WAD;
+    /// @inheritdoc IBloomPool
+    function batchValue(uint256[] calldata ids, address lender)
+        external
+        view
+        returns (BatchValueResult memory result)
+    {
+        result.remainingIds = ids;
+        uint256 remainingCount;
+        uint256 currentRwaPrice;
+        uint256 timestamp = block.timestamp;
+
+        unchecked {
+            for (uint256 i; i < ids.length; ++i) {
+                uint256 id = ids[i];
+
+                if (currentRwaPrice == 0) {
+                    currentRwaPrice = _getRwaPrice();
+                }
+
+                (uint256 rate, bool valid) = _calculateRate(id, timestamp, currentRwaPrice);
+                if (!valid) {
+                    result.remainingIds[remainingCount++] = id;
+                    continue;
+                }
+
+                uint256 balance = balanceOf(lender, id);
+                if (balance == 0) continue;
+
+                result.totalValue += balance.mulWad(rate);
+            }
         }
 
-        // If the TBY has matured, and is eligible for redemption, calculate the rate based on the end price.
-        uint256 price = rwaPrice_.endPrice != 0
-            ? rwaPrice_.endPrice
-            : _getRwaPrice();
-        uint256 rate = (uint256(price).divWad(uint256(rwaPrice_.startPrice)));
-        return _takeSpread(rate, rwaPrice_.spread);
+        if (remainingCount < ids.length) {
+            assembly {
+                mstore(mload(result), remainingCount)
+            }
+        }
     }
 
     /// @inheritdoc IBloomPool
     function bloomRouter() external view override returns (address) {
         return address(_bloomRouter);
     }
-
 
     /// @inheritdoc IBloomPool
     function asset() external view override returns (address) {

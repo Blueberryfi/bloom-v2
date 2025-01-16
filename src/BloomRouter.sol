@@ -124,13 +124,7 @@ contract BloomRouter is IBloomRouter, Ownable2Step, ReentrancyGuard {
         }
 
         IERC20(_asset).forceApprove(pool, lCollateral);
-        bCollateral = IBloomPool(pool).borrow(
-            tbyId, 
-            msg.sender, 
-            lCollateral,
-            lenders,
-            amounts
-        );
+        bCollateral = IBloomPool(pool).borrow(tbyId, msg.sender, lCollateral, lenders, amounts);
         emit Borrowed(msg.sender, tbyId, lCollateral, bCollateral);
     }
 
@@ -255,6 +249,37 @@ contract BloomRouter is IBloomRouter, Ownable2Step, ReentrancyGuard {
     /*///////////////////////////////////////////////////////////////
                             View Functions    
     //////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc IBloomRouter
+    function lenderBatchTvl(address lender, uint256[] calldata tbyIds, bool includeOpenBalance)
+        external
+        view
+        override
+        returns (uint256 tvl)
+    {
+        uint256[] memory ids = tbyIds;
+        uint256 len = tbyIds.length;
+
+        while (len > 0) {
+            // Get the pool for the first ID
+            address pool = _idToPool[ids[0]];
+            require(pool != address(0), Errors.InvalidTby());
+
+            // Process batch for this pool
+            IBloomPool.BatchValueResult memory result = IBloomPool(pool).batchValue(ids, lender);
+            tvl += result.totalValue;
+
+            // Update for next iteration
+            len = result.remainingIds.length;
+            if (len > 0) {
+                ids = result.remainingIds;
+            }
+        }
+
+        if (includeOpenBalance) {
+            tvl += _userOpenOrder[lender];
+        }
+    }
 
     /// @inheritdoc IBloomRouter
     function asset() external view override returns (address) {

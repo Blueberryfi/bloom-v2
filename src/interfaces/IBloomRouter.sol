@@ -162,6 +162,18 @@ interface IBloomRouter {
                             View Functions
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Derives the total value locked (TVL) for a given lender across multiple TBYs.
+     * @param lender The address of the lender to derrive the TVL for.
+     * @param tbyIds The ids of the TBYs to derrive the TVL for.
+     * @param includeOpenBalance Whether to include the open balance of the lender in the TVL calculation.
+     * @return tvl The total value locked (TVL) for the given lender across the provided TBYs.
+     */
+    function lenderBatchTvl(address lender, uint256[] calldata tbyIds, bool includeOpenBalance)
+        external
+        view
+        returns (uint256 tvl);
+
     /// @notice Returns the address of the underlying asset of the pool.
     function asset() external view returns (address);
 

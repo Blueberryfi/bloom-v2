@@ -89,7 +89,7 @@ abstract contract Tby is ITby, ERC1155 {
      * @param id The Tby id.
      * @param amount The amount to mint.
      */
-    function _mint(address account, uint256 id, uint256 amount, bytes memory /*data*/) internal override {
+    function _mint(address account, uint256 id, uint256 amount, bytes memory /*data*/ ) internal override {
         _totalSupply[id] += amount;
         super._mint(account, id, amount, "");
         emit Mint(account, id, amount);

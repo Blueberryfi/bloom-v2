@@ -45,6 +45,16 @@ interface IBloomPool {
         uint128 end;
     }
 
+    /**
+     * @notice Struct used to return the total value of a set of TBYs when batchValue is called.
+     * @param totalValue The total value of the TBYs.
+     * @param remainingIds The ids of the TBYs that were not processed in the call.
+     */
+    struct BatchValueResult {
+        uint256 totalValue;
+        uint256[] remainingIds;
+    }
+
     /*///////////////////////////////////////////////////////////////
                               Events
     //////////////////////////////////////////////////////////////*/
@@ -82,7 +92,10 @@ interface IBloomPool {
      * @param amounts The amounts of the lenders.
      * @return bCollateral Total amount of borrower collateral posted to execute the transaction.
      */
-    function borrow(uint256 tbyId, address borrower, uint256 amount, address[] memory lenders, uint256[] memory amounts) external payable returns (uint256 bCollateral);
+    function borrow(uint256 tbyId, address borrower, uint256 amount, address[] memory lenders, uint256[] memory amounts)
+        external
+        payable
+        returns (uint256 bCollateral);
 
     /**
      * @notice Repays ALL borrowers borrowed funds + collateral.
@@ -195,4 +208,16 @@ interface IBloomPool {
 
     /// @notice Returns the total amount of assets currently available for borrower's to redeem for a given Tby ID.
     function borrowerReturns(uint256 id) external view returns (uint256);
+
+    /**
+     * @notice This function is used to get the total value worth of a set of TBYs for a given lender.
+     * @param ids The ids of the TBYs to get the total value for.
+     * @param lender The address of the lender to get the total value for.
+     * @return result A BatchValueResult struct containing the total value worth of the TBYs for the lender
+     *         and the remaining ids that were not processed in the call.
+     */
+    function batchValue(uint256[] calldata ids, address lender)
+        external
+        view
+        returns (BatchValueResult memory result);
 }
