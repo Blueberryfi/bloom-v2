@@ -9,7 +9,9 @@
 */
 pragma solidity 0.8.27;
 
-interface IBloomPool {
+import {ITby} from "./ITby.sol";
+
+interface IBloomPool is ITby{
     /*///////////////////////////////////////////////////////////////
                                 Structs
     //////////////////////////////////////////////////////////////*/
