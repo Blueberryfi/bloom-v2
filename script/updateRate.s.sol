@@ -9,10 +9,7 @@ contract UpdateScript is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        MockPriceFeed usdPriceFeed = MockPriceFeed(0x1456A0032701be0B8D5b6f6E5A4bE795d791A9B8);
-        usdPriceFeed.setLatestRoundData(11, 1e8, 0, block.timestamp, 11);
-
-        MockPriceFeed billPriceFeed = MockPriceFeed(0x0C955e46b4Db7745840bE54dA5ED8bF3E1D5C282);
+        MockPriceFeed billPriceFeed = MockPriceFeed(0x7d9df786dA5D6888685924F20399B09E4c7731Ed);
         billPriceFeed.setLatestRoundData(11, 100.03e8, 0, block.timestamp, 11);
     }
 }
