@@ -3,13 +3,12 @@ pragma solidity ^0.8.0;
 
 import "forge-std/Script.sol";
 
-import { BloomRouter } from "@bloom-v2/BloomRouter.sol";
-import { BloomPool } from "@bloom-v2/pools/BloomPool.sol";
-import { MockBloomPool } from "../test/mocks/MockBloomPool.sol";
-import { MockPriceFeed } from "../test/mocks/MockPriceFeed.sol";
+import {BloomRouter} from "@bloom-v2/BloomRouter.sol";
+import {BloomPool} from "@bloom-v2/pools/BloomPool.sol";
+import {MockBloomPool} from "../test/mocks/MockBloomPool.sol";
+import {MockPriceFeed} from "../test/mocks/MockPriceFeed.sol";
 
 contract DeployScript is Script {
-
     address constant BASE_USDC = 0x0000000000000000000000000000000000000000;
     address constant BASE_RWA = 0x0000000000000000000000000000000000000000;
 
@@ -21,7 +20,6 @@ contract DeployScript is Script {
 
     string constant BASE_SEPOLIA_TBY_NAME = "Mock Treasury Bill";
     string constant BASE_SEPOLIA_TBY_SUFFIX = "MTB";
-
 
     uint256 constant INIT_LEVERAGE = 50e18;
     uint256 constant INIT_SPREAD = 0.995e18;
@@ -38,11 +36,7 @@ contract DeployScript is Script {
 
         console.log("MockPriceFeed deployed at", address(mockPriceFeed));
 
-        BloomRouter bloomRouter = new BloomRouter(
-            IS_TESTNET ? BASE_SEPOLIA_MOCK_STABLE : BASE_USDC,
-            1e6,
-            deployer
-        );
+        BloomRouter bloomRouter = new BloomRouter(IS_TESTNET ? BASE_SEPOLIA_MOCK_STABLE : BASE_USDC, 1e6, deployer);
         console.log("BloomRouter deployed at", address(bloomRouter));
 
         MockBloomPool bloomPool = new MockBloomPool(
