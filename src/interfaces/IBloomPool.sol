@@ -57,6 +57,46 @@ interface IBloomPool is ITby {
         uint256[] remainingIds;
     }
 
+    /**
+     * @notice Struct representing the borrow order.
+     * @param tbyId The id of the TBY to borrow the assets for.
+     * @param borrower The address of the borrower.
+     * @param totalAmount The total amount of underlying assets that the borrower is borrowering.
+     * @param lenders The addresses of the lenders.
+     * @param amounts The amounts of the lenders.
+     */
+    struct BorrowOrder {
+        uint256 tbyId;
+        address borrower;
+        uint256 totalAmount;
+        address[] lenders;
+        uint256[] amounts;
+    }
+
+    /**
+     * @notice Struct representing the result of a borrow order.
+     * @param bCollateral The amount of borrower collateral posted to execute the transaction.
+     * @param rwaPurchased The amount of RWA assets purchased from the loan.
+     */
+    struct BorrowResult {
+        uint256 bCollateral;
+        uint256 rwaPurchased;
+    }
+
+    /**
+     * @notice Struct representing the result of a repay order.
+     * @param rwaRepaid The amount of RWA assets repaid.
+     * @param assetsReturned The amount of underlying assets received after repaying the RWA.
+     * @param rwaCollRemaining The amount of RWA collateral backed by the TBY after repaying the RWA.
+     * @param assetCollRemaining The amount of underlying asset collateral backed by the TBY after repaying the RWA.
+     */
+    struct RepayResult {
+        uint256 rwaRepaid;
+        uint256 assetsReturned;
+        uint256 rwaCollRemaining;
+        uint256 assetCollRemaining;
+    }
+
     /*///////////////////////////////////////////////////////////////
                               Events
     //////////////////////////////////////////////////////////////*/
@@ -79,6 +119,14 @@ interface IBloomPool is ITby {
      */
     event TbyMaturitySet(uint256 maturityLength);
 
+    /**
+     * @notice Emitted when a new TBY id's maturity is set.
+     * @param id The id of the new TBY.
+     * @param start The start timestamp of the new TBY.
+     * @param end The end timestamp of the new TBY.
+     */
+    event NewTbyId(uint256 id, uint256 start, uint256 end);
+
     /*///////////////////////////////////////////////////////////////
                             Write Functions    
     //////////////////////////////////////////////////////////////*/
@@ -87,31 +135,22 @@ interface IBloomPool is ITby {
      * @notice Borrow lenders funds to purchase an RWA asset.
      * @dev This function will be called by the BloomRouter.
      * @dev Module Developers need to implement the _purchaseRwa function in order to allow this function to execute successfully.
-     * @param tbyId The id of the TBY to borrow the assets for.
-     * @param borrower The address of the borrower.
-     * @param amount The amount of underlying assets that the borrower is borrowering.
-     * @param lenders The addresses of the lenders.
-     * @param amounts The amounts of the lenders.
-     * @return bCollateral Total amount of borrower collateral posted to execute the transaction.
+     * @param order A BorrowOrder struct containing the id of the TBY to borrow the assets for, the address of the borrower,
+     *         the amount of underlying assets that the borrower is borrowering, the addresses of the lenders, and the amounts of the lenders.
+     * @return result A BorrowResult struct containing the amount of borrower collateral posted to execute the transaction
+     *         and the amount of RWA assets purchased from the loan.
      */
-    function borrow(uint256 tbyId, address borrower, uint256 amount, address[] memory lenders, uint256[] memory amounts)
-        external
-        payable
-        returns (uint256 bCollateral);
+    function borrow(BorrowOrder memory order) external payable returns (BorrowResult memory result);
 
     /**
      * @notice Repays ALL borrowers borrowed funds + collateral.
      * @dev This function will be called by the BloomRouter.
      * @dev Module Developers need to implement the _getRwaSwapAmount and _repayRwa functions in order to allow this function to execute successfully.
      * @param tbyId The id of the TBY to repay the borrowed assets for.
-     * @return rwaAmount The amount of RWA assets repaid.
-     * @return assetAmount The amount of underlying assets received after repaying the RWA.
-     * @return endRwaCollateral The amount of RWA collateral backed by the TBY after repaying the RWA.
-     * @return endAssetCollateral The amount of underlying asset collateral backed by the TBY after repaying the RWA.
+     * @return result A RepayResult struct containing the amount of RWA assets repaid, the amount of underlying assets received after repaying the RWA,
+     *         the amount of RWA collateral backed by the TBY after repaying the RWA, and the amount of underlying asset collateral backed by the TBY after repaying the RWA.
      */
-    function repay(uint256 tbyId)
-        external
-        returns (uint256 rwaAmount, uint256 assetAmount, uint256 endRwaCollateral, uint256 endAssetCollateral);
+    function repay(uint256 tbyId) external returns (RepayResult memory result);
 
     /**
      * @notice Withdraws the lender's funds from the TBY.

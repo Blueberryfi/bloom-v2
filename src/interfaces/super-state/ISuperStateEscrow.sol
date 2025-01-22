@@ -9,8 +9,8 @@ interface ISuperStateEscrow {
     /// @notice Returns the address of the borrower associated with this escrow contract.
     function borrower() external view returns (address);
 
-    /// @notice Returns the address of the borrow module which created this escrow contract.
-    function borrowModule() external view returns (address);
+    /// @notice Returns the address of the BloomPool which created this escrow contract.
+    function bloomPool() external view returns (address);
 
     /// @notice Returns the address of the underlying asset.
     function asset() external view returns (address);

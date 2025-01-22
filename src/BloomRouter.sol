@@ -124,17 +124,34 @@ contract BloomRouter is IBloomRouter, Ownable2Step, ReentrancyGuard {
         }
 
         IERC20(_asset).forceApprove(pool, lCollateral);
-        bCollateral = IBloomPool(pool).borrow(tbyId, msg.sender, lCollateral, lenders, amounts);
-        emit Borrowed(msg.sender, tbyId, lCollateral, bCollateral);
+
+        IBloomPool.BorrowOrder memory order = IBloomPool.BorrowOrder({
+            tbyId: tbyId,
+            borrower: msg.sender,
+            totalAmount: lCollateral,
+            lenders: lenders,
+            amounts: amounts
+        });
+
+        IBloomPool.BorrowResult memory result = IBloomPool(pool).borrow(order);
+
+        emit Borrowed(msg.sender, tbyId, lCollateral, result.bCollateral, result.rwaPurchased);
+        return (tbyId, lCollateral, result.bCollateral);
     }
 
     /// @inheritdoc IBloomRouter
     function repay(uint256 tbyId) external override nonReentrant {
         address pool = _idToPool[tbyId];
         require(pool != address(0), Errors.InvalidTby());
-        (uint256 rwaAmount, uint256 assetAmount, uint256 endRwaCollateral, uint256 endAssetCollateral) =
-            IBloomPool(pool).repay(tbyId);
-        emit Repaid(tbyId, msg.sender, rwaAmount, assetAmount, endRwaCollateral, endAssetCollateral);
+        IBloomPool.RepayResult memory result = IBloomPool(pool).repay(tbyId);
+        emit Repaid(
+            tbyId,
+            msg.sender,
+            result.rwaRepaid,
+            result.assetsReturned,
+            result.rwaCollRemaining,
+            result.assetCollRemaining
+        );
     }
 
     /// @inheritdoc IBloomRouter

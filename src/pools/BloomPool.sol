@@ -162,73 +162,68 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBloomPool
-    function borrow(uint256 tbyId, address borrower, uint256 amount, address[] memory lenders, uint256[] memory amounts)
+    function borrow(IBloomPool.BorrowOrder memory order)
         external
         payable
         override
         onlyRouter
-        kycCheck(borrower)
-        returns (uint256 bCollateral)
+        kycCheck(order.borrower)
+        returns (IBloomPool.BorrowResult memory result)
     {
-        bCollateral = amount.divWadUp(_leverage);
-        require(bCollateral > 0, Errors.ZeroAmount());
+        result.bCollateral = order.totalAmount.divWadUp(_leverage);
+        require(result.bCollateral > 0, Errors.ZeroAmount());
 
-        uint256 len = amounts.length;
+        uint256 len = order.amounts.length;
         for (uint256 i = 0; i != len; ++i) {
-            _mint(lenders[i], tbyId, amounts[i], "");
+            _mint(order.lenders[i], order.tbyId, order.amounts[i], "");
         }
 
-        if (tbyId != _lastMintedId) {
-            _lastMintedId = tbyId;
+        if (order.tbyId != _lastMintedId) {
+            _lastMintedId = order.tbyId;
         }
 
-        uint256 totalCollateral = _transferCollateral(borrower, amount, bCollateral);
-        uint256 rwaAmount = _purchaseRwa(borrower, totalCollateral);
+        uint256 totalCollateral = _transferCollateral(order.borrower, order.totalAmount, result.bCollateral);
+        result.rwaPurchased = _purchaseRwa(order.borrower, totalCollateral);
 
-        TbyCollateral storage collateral = _idToCollateral[tbyId];
-        collateral.rwaAmount += uint128(rwaAmount);
+        TbyCollateral storage collateral = _idToCollateral[order.tbyId];
+        collateral.rwaAmount += uint128(result.rwaPurchased);
 
         uint256 scaledCollateral = totalCollateral * (10 ** (18 - _assetDecimals));
-        uint256 scaledRwaAmount = rwaAmount * (10 ** (18 - _rwaDecimals));
+        uint256 scaledRwaAmount = result.rwaPurchased * (10 ** (18 - _rwaDecimals));
         uint256 rwaPriceFixedPoint = scaledCollateral.divWad(scaledRwaAmount);
 
-        _setStartPrice(tbyId, rwaPriceFixedPoint, rwaAmount, collateral.rwaAmount);
+        _setStartPrice(order.tbyId, rwaPriceFixedPoint, result.rwaPurchased, collateral.rwaAmount);
 
-        _borrowerAmounts[borrower][tbyId] += bCollateral;
-        _idToTotalBorrowed[tbyId] += bCollateral;
+        _borrowerAmounts[order.borrower][order.tbyId] += result.bCollateral;
+        _idToTotalBorrowed[order.tbyId] += result.bCollateral;
     }
 
     /// @inheritdoc IBloomPool
-    function repay(uint256 tbyId)
-        external
-        override
-        onlyRouter
-        returns (uint256 rwaAmount, uint256 assetAmount, uint256 endRwaCollateral, uint256 endAssetCollateral)
-    {
+    function repay(uint256 tbyId) external override onlyRouter returns (IBloomPool.RepayResult memory result) {
         require(_idToMaturity[tbyId].end <= block.timestamp, Errors.TBYNotMatured());
 
-        rwaAmount = _getRwaSwapAmount(tbyId);
-        require(rwaAmount > 0, Errors.ZeroAmount());
+        result.rwaRepaid = _getRwaSwapAmount(tbyId);
+        require(result.rwaRepaid > 0, Errors.ZeroAmount());
 
         TbyCollateral storage collateral = _idToCollateral[tbyId];
         // Cannot swap out more RWA tokens than is allocated for the TBY.
-        rwaAmount = FpMath.min(rwaAmount, collateral.rwaAmount);
+        result.rwaRepaid = FpMath.min(result.rwaRepaid, collateral.rwaAmount);
 
-        assetAmount = _repayRwa(rwaAmount);
+        result.assetsReturned = _repayRwa(result.rwaRepaid);
 
-        collateral.rwaAmount -= uint128(rwaAmount);
-        collateral.assetAmount += uint128(assetAmount);
+        collateral.rwaAmount -= uint128(result.rwaRepaid);
+        collateral.assetAmount += uint128(result.assetsReturned);
 
         if (collateral.rwaAmount == 0) {
             RwaPrice storage rwaPrice_ = _tbyIdToRwaPrice[tbyId];
 
-            assetAmount = collateral.assetAmount;
+            uint256 totalAssets = collateral.assetAmount;
             uint256 tbyAmount = totalSupply(tbyId);
             uint256 rate = getRate(tbyId);
             uint256 lenderReturn = rate.mulWad(tbyAmount);
 
-            if (lenderReturn > assetAmount) {
-                rate = assetAmount.divWad(tbyAmount);
+            if (lenderReturn > totalAssets) {
+                rate = totalAssets.divWad(tbyAmount);
                 rwaPrice_.endPrice = uint128(rate.mulWad(rwaPrice_.startPrice));
                 lenderReturn = getRate(tbyId).mulWad(tbyAmount);
             } else {
@@ -236,9 +231,11 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
             }
 
             _tbyLenderReturns[tbyId] = lenderReturn;
-            _tbyBorrowerReturns[tbyId] = assetAmount - lenderReturn;
+            _tbyBorrowerReturns[tbyId] = totalAssets - lenderReturn;
         }
-        return (rwaAmount, assetAmount, collateral.rwaAmount, collateral.assetAmount);
+
+        result.rwaCollRemaining = collateral.rwaAmount;
+        result.assetCollRemaining = collateral.assetAmount;
     }
 
     /// @inheritdoc IBloomPool
@@ -290,6 +287,7 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
             uint128 end = start + uint128(_loanDuration);
             _idToMaturity[id] = TbyMaturity(start, end);
 
+            emit NewTbyId(id, start, end);
             _lastMintedId = id;
         }
     }
@@ -416,8 +414,8 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
     }
 
     function _transferCollateral(address borrower, uint256 amount, uint256 bCollateral) internal returns (uint256) {
-        IERC20(_asset).transferFrom(borrower, address(this), bCollateral);
-        IERC20(_asset).transferFrom(address(_bloomRouter), address(this), amount);
+        IERC20(_asset).safeTransferFrom(borrower, address(this), bCollateral);
+        IERC20(_asset).safeTransferFrom(address(_bloomRouter), address(this), amount);
         return amount + bCollateral;
     }
 
