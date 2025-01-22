@@ -28,7 +28,7 @@ contract TbyUnitTest is BloomTestSetup {
             address(priceFeed),
             6,
             50e18,
-            .9e18,
+            0.9e18,
             address(1)
         );
     }
