@@ -20,4 +20,15 @@ interface IRedemptionIdle {
         external
         view
         returns (uint256 superstateTokenAmount, uint256 usdPerUstbChainlinkRaw);
+
+    /**
+     * @notice The ```calculateUsdcOut``` function calculates the total amount of USDC you'll receive for redeeming Superstate tokens
+     * @param superstateTokenInAmount The amount of Superstate tokens to redeem
+     * @return usdcOutAmount The amount of USDC received for redeeming superstateTokenInAmount
+     * @return usdPerUstbChainlinkRaw The raw chainlink price used in calculation
+     */
+    function calculateUsdcOut(uint256 superstateTokenInAmount)
+        external
+        view
+        returns (uint256 usdcOutAmount, uint256 usdPerUstbChainlinkRaw);
 }

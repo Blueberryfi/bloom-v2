@@ -9,7 +9,6 @@
 */
 pragma solidity 0.8.27;
 
-import {AggregatorV3Interface} from "@chainlink/shared/interfaces/AggregatorV3Interface.sol";
 import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
 import {Ownable} from "@openzeppelin/access/Ownable.sol";
 import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
@@ -20,7 +19,7 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {Tby} from "@bloom-v2/token/Tby.sol";
 import {IBloomRouter} from "@bloom-v2/interfaces/IBloomRouter.sol";
 import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
-import "forge-std/console.sol";
+
 /**
  * @title BloomPool
  * @notice Reusable logic for building BloomPools on the Bloom Protocol.

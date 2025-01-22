@@ -11,7 +11,6 @@ pragma solidity 0.8.27;
 
 import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
-import {AggregatorV3Interface} from "@bloom-v2/interfaces/AggregatorV3Interface.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {BloomPool} from "@bloom-v2/pools/BloomPool.sol";
@@ -69,9 +68,6 @@ contract SuperStatePool is BloomPool {
     /// @notice The address of the redemption contract.
     address internal immutable _redemptionContract;
 
-    /// @notice The address of the USTB price feed.
-    address internal immutable _priceFeed;
-
     /*///////////////////////////////////////////////////////////////
                                 Constructor
     //////////////////////////////////////////////////////////////*/
@@ -81,7 +77,6 @@ contract SuperStatePool is BloomPool {
         string memory symbolSuffix_,
         address bloomPool_,
         address rwa_,
-        address priceFeed_,
         uint8 assetDecimals_,
         uint256 initLeverage,
         uint256 initSpread,
@@ -89,7 +84,6 @@ contract SuperStatePool is BloomPool {
         address redemptionContract
     ) BloomPool(name_, symbolSuffix_, bloomPool_, rwa_, assetDecimals_, initLeverage, initSpread, owner_) {
         _redemptionContract = redemptionContract;
-        _priceFeed = priceFeed_;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -102,7 +96,7 @@ contract SuperStatePool is BloomPool {
      * @param borrower The address of the borrower
      * @return account The address of the new borrower account
      */
-    function createNewBorrowerAccount(address borrower) external onlyOwner returns (address account) {
+    function createBorrowerAccount(address borrower) external onlyOwner returns (address account) {
         require(borrower != address(0), Errors.ZeroAddress());
         require(_borrowerToAccount[borrower] == address(0), ExistingAccount());
 
@@ -187,16 +181,10 @@ contract SuperStatePool is BloomPool {
     }
 
     function _getRwaPrice() internal view override returns (uint256) {
-        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(_priceFeed).latestRoundData();
-        if (answer <= 0) revert Errors.InvalidAnswer();
-
-        uint256 staleness = block.timestamp - updatedAt;
-        if (staleness > maxStaleness) {
-            revert Errors.OutOfDate();
-        }
-
-        uint256 price = uint256(answer);
-        return price;
+        // We use SuperStates ```calculateUsdcOut``` function instead of the direct price feed 
+        //    to account for fees that are incurred when redeeming USTB
+        (uint256 usdcOutAmount,) = IRedemptionIdle(_redemptionContract).calculateUsdcOut(1e18);
+        return usdcOutAmount;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -217,9 +205,5 @@ contract SuperStatePool is BloomPool {
     /// @notice Returns the hashed ids associated with the given TBY id.
     function tbyIdToHashedIds(uint256 tbyId) external view returns (bytes32[] memory) {
         return _tbyIdToHashedIds[tbyId];
-    }
-
-    function priceFeed() external view returns (address) {
-        return _priceFeed;
     }
 }

@@ -6,6 +6,7 @@ import {BloomPool, IBloomPool} from "@bloom-v2/pools/BloomPool.sol";
 import {SuperStatePool} from "@bloom-v2/pools/super-state/SuperStatePool.sol";
 import {SuperStateEscrow} from "@bloom-v2/pools/super-state/SuperStateEscrow.sol";
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
+import {IRedemptionIdle} from "@bloom-v2/interfaces/super-state/IRedemptionIdle.sol";
 
 interface IUstbExtension {
     function calculateSuperstateTokenOut(uint256 inAmount, address stablecoin)
@@ -22,20 +23,12 @@ interface ISuperStateAllowListV2 {
     function setEntityIdForAddress(EntityId entityId, address addr) external;
 }
 
-interface ISuperStateRedemption {
-    function calculateUsdcOut(uint256 superstateTokenInAmount)
-        external
-        view
-        returns (uint256 usdcOutAmount, uint256 usdPerUstbChainlinkRaw);
-}
-
 contract SuperStateForkTest is BloomTestSetup {
     uint256 internal mainnetFork;
     SuperStatePool internal ustbPool;
 
     address internal constant REDEMPTION_CONTRACT = 0x4c21B7577C8FE8b0B0669165ee7C8f67fa1454Cf;
     address internal constant USDC_WHALE = 0x37305B1cD40574E4C5Ce33f8e8306Be057fD7341;
-    address internal constant PRICE_FEED = 0xE4fA682f94610cCd170680cc3B045d77D9E528a8;
     address internal constant SUPERSTATE_ADMIN = 0x7747940aDBc7191f877a9B90596E0DA4f8deb2Fe;
 
     function setUp() public {
@@ -52,7 +45,6 @@ contract SuperStateForkTest is BloomTestSetup {
             "USTB",
             address(bloomRouter),
             address(billToken),
-            PRICE_FEED,
             6,
             50e18,
             0.9e18,
@@ -74,20 +66,20 @@ contract SuperStateForkTest is BloomTestSetup {
         // Should revert if alice tries to create a new borrower account
         vm.startPrank(alice);
         vm.expectRevert();
-        ustbPool.createNewBorrowerAccount(alice);
+        ustbPool.createBorrowerAccount(alice);
         vm.stopPrank();
 
         // Should revert with zero address
         vm.startPrank(owner);
         vm.expectRevert(Errors.ZeroAddress.selector);
-        ustbPool.createNewBorrowerAccount(address(0));
+        ustbPool.createBorrowerAccount(address(0));
         vm.stopPrank();
 
         // Should succeed if the owner creates a new borrower account
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
         emit IBloomPool.BorrowerKyced(borrower1, true);
-        address borrower1Account = ustbPool.createNewBorrowerAccount(borrower1);
+        address borrower1Account = ustbPool.createBorrowerAccount(borrower1);
         vm.stopPrank();
 
         // Verify that the borrower account was created
@@ -107,13 +99,13 @@ contract SuperStateForkTest is BloomTestSetup {
     function testDuplicateBorrower() public {
         // Should revert if the borrower already has an account
         vm.startPrank(owner);
-        ustbPool.createNewBorrowerAccount(borrower1);
+        ustbPool.createBorrowerAccount(borrower1);
         vm.stopPrank();
 
         // Should revert if the borrower already has an account
         vm.startPrank(owner);
         vm.expectRevert(SuperStatePool.ExistingAccount.selector);
-        ustbPool.createNewBorrowerAccount(borrower1);
+        ustbPool.createBorrowerAccount(borrower1);
         vm.stopPrank();
     }
 
@@ -203,7 +195,7 @@ contract SuperStateForkTest is BloomTestSetup {
         vm.stopPrank();
 
         // Calculated the expected stablecoin returned amount
-        (uint256 expectedStable,) = ISuperStateRedemption(REDEMPTION_CONTRACT).calculateUsdcOut(ustbPurchased);
+        (uint256 expectedStable,) = IRedemptionIdle(REDEMPTION_CONTRACT).calculateUsdcOut(ustbPurchased);
 
         // Execute repayment
         vm.startPrank(address(ustbPool));
@@ -219,7 +211,7 @@ contract SuperStateForkTest is BloomTestSetup {
 
     function _createBorrowerAccount(address borrower) internal returns (SuperStateEscrow) {
         vm.startPrank(owner);
-        address borrowerAccount = ustbPool.createNewBorrowerAccount(borrower);
+        address borrowerAccount = ustbPool.createBorrowerAccount(borrower);
         vm.stopPrank();
         return SuperStateEscrow(borrowerAccount);
     }
