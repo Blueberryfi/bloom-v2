@@ -78,9 +78,9 @@ contract SuperStatePool is BloomPool {
         uint256 initLeverage,
         uint256 initSpread,
         address owner_,
-        address redemptionContract
+        address redemptionContract_
     ) BloomPool(name_, symbolSuffix_, bloomPool_, rwa_, assetDecimals_, initLeverage, initSpread, owner_) {
-        _redemptionContract = redemptionContract;
+        _redemptionContract = redemptionContract_;
     }
 
     /*///////////////////////////////////////////////////////////////
