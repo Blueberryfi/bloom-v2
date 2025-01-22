@@ -104,6 +104,7 @@ contract SuperStateUnitTests is SuperStateSetup {
         assertEq(ustbPool.borrowersAccount(borrower1), address(escrow));
         assertEq(ustbPool.borrowersAccount(borrower2), address(0));
         assertEq(ustbPool.tbyIdToHashedIds(0).length, 0);
+        assertEq(ustbPool.isKYCedBorrower(borrower1), true);
 
         // Verify escrow contract initialization
         assertEq(escrow.borrower(), borrower1);
@@ -121,6 +122,7 @@ contract SuperStateUnitTests is SuperStateSetup {
         address escrow2 = ustbPool.createBorrowerAccount(borrower2);
         assertNotEq(escrow2, address(0));
         assertNotEq(address(escrow), escrow2);
+        assertEq(ustbPool.isKYCedBorrower(borrower2), true);
 
         vm.stopPrank();
     }
