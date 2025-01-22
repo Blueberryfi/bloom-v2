@@ -1,54 +1,51 @@
-// // SPDX-License-Identifier: MIT
-// /*
-// ██████╗░██╗░░░░░░█████╗░░█████╗░███╗░░░███╗
-// ██╔══██╗██║░░░░░██╔══██╗██╔══██╗████╗░████║
-// ██████╦╝██║░░░░░██║░░██║██║░░██║██╔████╔██║
-// ██╔══██╗██║░░░░░██║░░██║██║░░██║██║╚██╔╝██║
-// ██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
-// ╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
-// */
-// pragma solidity 0.8.27;
+// SPDX-License-Identifier: MIT
+/*
+██████╗░██╗░░░░░░█████╗░░█████╗░███╗░░░███╗
+██╔══██╗██║░░░░░██╔══██╗██╔══██╗████╗░████║
+██████╦╝██║░░░░░██║░░██║██║░░██║██╔████╔██║
+██╔══██╗██║░░░░░██║░░██║██║░░██║██║╚██╔╝██║
+██████╦╝███████╗╚█████╔╝╚█████╔╝██║░╚═╝░██║
+╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░░░░╚═╝
+*/
+pragma solidity 0.8.27;
 
-// import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
-// import {Tby} from "@bloom-v2/token/Tby.sol";
-// import {BloomTestSetup} from "../BloomTestSetup.t.sol";
+import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
+import {MockBloomPool} from "../mocks/MockBloomPool.sol";
+import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 
-// contract TbyUnitTest is BloomTestSetup {
-//     function setUp() public override {
-//         _setUp();
-//     }
+contract TbyUnitTest is BloomTestSetup {
+    MockBloomPool tby; // Same thing as bloomPool
 
-//     function testConstructor() public {
-//         Tby newTby = new Tby(address(bloomPool), 18);
-//         assertEq(newTby.bloomPool(), address(bloomPool));
-//         assertEq(newTby.decimals(), 18);
-//     }
+    function setUp() public {
+        _setUp(address(0), address(0));
 
-//     function testBloomPool() public {
-//         assertEq(tby.bloomPool(), address(bloomPool));
-//     }
+        // Create a new BloomPool
+        tby = new MockBloomPool(
+            "Test Strategy",
+            "TEST",
+            address(bloomRouter),
+            address(billToken),
+            address(priceFeed),
+            6,
+            50e18,
+            .9e18,
+            address(1)
+        );
+    }
 
-//     function testDecimals() public {
-//         assertEq(tby.decimals(), bloomPool.assetDecimals());
-//     }
+    function testDecimals() public {
+        assertEq(tby.decimals(), 6);
+    }
 
-//     function testName() public {
-//         assertEq(tby.name(), "Term Bound Yield");
-//     }
+    function testName() public {
+        assertEq(tby.name(), "Term Bound Yield - Test Strategy");
+    }
 
-//     function testSymbol() public {
-//         assertEq(tby.symbol(), "TBY");
-//     }
+    function testSymbol() public {
+        assertEq(tby.symbol(), "TBY-TEST");
+    }
 
-//     function testUri() public {
-//         assertEq(tby.uri(1), "https://bloom.garden/live");
-//     }
-
-//     function testNonBloomCaller() public {
-//         vm.startPrank(rando);
-
-//         // Revert open
-//         vm.expectRevert(Errors.NotBloom.selector);
-//         tby.mint(0, alice, 1e6);
-//     }
-// }
+    function testUri() public {
+        assertEq(tby.uri(1), "https://bloom.garden/TBY-TEST/1");
+    }
+}
