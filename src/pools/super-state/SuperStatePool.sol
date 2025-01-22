@@ -10,6 +10,7 @@
 pragma solidity 0.8.27;
 
 import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {AggregatorV3Interface} from "@bloom-v2/interfaces/AggregatorV3Interface.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
@@ -19,6 +20,7 @@ import {IRedemptionIdle} from "@bloom-v2/interfaces/super-state/IRedemptionIdle.
 
 contract SuperStatePool is BloomPool {
     using FpMath for uint256;
+    using SafeERC20 for IERC20;
 
     /*///////////////////////////////////////////////////////////////
                                 Structs
@@ -134,7 +136,7 @@ contract SuperStatePool is BloomPool {
             data.escrow = address(escrow);
             _tbyIdToHashedIds[tbyId].push(hashedId);
         }
-
+        _asset.forceApprove(address(escrow), totalCollateral);
         rwaAmount = escrow.executePurchase(totalCollateral);
         data.rwaAmount += rwaAmount;
     }

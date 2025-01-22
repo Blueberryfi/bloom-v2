@@ -41,9 +41,9 @@ abstract contract BloomTestSetup is Test {
     address[] public filledOrders;
     uint256[] public filledAmounts;
 
-    function setUp() public virtual {
-        stable = new MockERC20("Mock USDC", "USDC", 6);
-        billToken = new MockERC20("Mock T-Bill Token", "bIb01", 18);
+    function _setUp(address stable_, address billToken_) internal {
+        _setupStable(stable_);
+        _setupBillToken(billToken_);
 
         // Start at a non-0 block timestamp
         skip(1 weeks);
@@ -79,5 +79,21 @@ abstract contract BloomTestSetup is Test {
         skip(time);
         priceFeed.setLatestRoundData(roundId, int256(price), block.timestamp, block.timestamp, roundId);
         vm.stopPrank();
+    }
+
+    function _setupStable(address stable_) internal {
+        if (stable_ == address(0)) {
+            stable = new MockERC20("Mock USDC", "USDC", 6);
+        } else {
+            stable = MockERC20(stable_);
+        }
+    }
+
+    function _setupBillToken(address billToken_) internal {
+        if (billToken_ == address(0)) {
+            billToken = new MockERC20("Mock T-Bill Token", "bIb01", 18);
+        } else {
+            billToken = MockERC20(billToken_);
+        }
     }
 }

@@ -23,8 +23,8 @@ contract BorrowUnitTests is BloomTestSetup {
 
     MockBloomPool internal mockBloomPool;
 
-    function setUp() public override {
-        super.setUp();
+    function setUp() public {
+        _setUp(address(0), address(0));
 
         // deploy mock borrow module
         mockBloomPool = new MockBloomPool(

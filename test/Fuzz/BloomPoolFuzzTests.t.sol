@@ -18,8 +18,8 @@ import {MockPriceFeed} from "../mocks/MockPriceFeed.sol";
 import {MockBloomPool} from "../mocks/MockBloomPool.sol";
 
 contract BloomRouterFuzzTests is BloomTestSetup {
-    function setUp() public override {
-        super.setUp();
+    function setUp() public {
+        _setUp(address(0), address(0));
     }
 
     function testLendOrder(uint256 amount) public {

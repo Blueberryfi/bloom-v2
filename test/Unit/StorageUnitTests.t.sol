@@ -13,8 +13,8 @@ import {IBloomRouter} from "@bloom-v2/interfaces/IBloomRouter.sol";
 import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 
 contract StorageUnitTests is BloomTestSetup {
-    function setUp() public override {
-        super.setUp();
+    function setUp() public {
+        _setUp(address(0), address(0));
     }
 
     function testAsset() public {

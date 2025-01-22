@@ -15,7 +15,7 @@
 
 // contract TbyUnitTest is BloomTestSetup {
 //     function setUp() public override {
-//         super.setUp();
+//         _setUp();
 //     }
 
 //     function testConstructor() public {

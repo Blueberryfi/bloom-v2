@@ -10,6 +10,7 @@
 pragma solidity 0.8.27;
 
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 
 import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {BloomPool} from "@bloom-v2/pools/BloomPool.sol";
@@ -23,6 +24,8 @@ import {ISuperStateEscrow} from "@bloom-v2/interfaces/super-state/ISuperStateEsc
  *         must have their own escrow contract in order to allow for atomic borrowing and repaying of SuperState's USTB.
  */
 contract SuperStateEscrow is ISuperStateEscrow {
+    using SafeERC20 for IERC20;
+
     /*///////////////////////////////////////////////////////////////
                         Constants & Immutables
     //////////////////////////////////////////////////////////////*/
@@ -82,8 +85,8 @@ contract SuperStateEscrow is ISuperStateEscrow {
      */
     function executePurchase(uint256 totalCollateral) external onlyPool returns (uint256) {
         IERC20 stablecoin = IERC20(_asset);
-        stablecoin.approve(_superstateToken, totalCollateral);
-        stablecoin.transferFrom(_borrower, address(this), totalCollateral);
+        stablecoin.safeTransferFrom(_bloomPool, address(this), totalCollateral);
+        stablecoin.forceApprove(_superstateToken, totalCollateral);
         return _subscribe(totalCollateral);
     }
 
@@ -94,8 +97,9 @@ contract SuperStateEscrow is ISuperStateEscrow {
      */
     function executeRepayment(uint256 ustbAmount) external onlyPool returns (uint256) {
         IERC20 ustb = IERC20(_superstateToken);
-        ustb.approve(_bloomPool, ustbAmount);
-        return _redeem(ustbAmount);
+        address ustbRedemptions = _redemptionContract;
+        ustb.forceApprove(ustbRedemptions, ustbAmount);
+        return _redeem(ustbRedemptions, ustbAmount);
     }
 
     /**
@@ -129,13 +133,14 @@ contract SuperStateEscrow is ISuperStateEscrow {
     /**
      * @notice Internal logic for redeeming USTB.
      * @dev This function transfers the stablecoin back to the Bloom Pool.
+     * @param ustbRedemptions The address of the redemption contract.
      * @param amount The amount of USTB being redeemed.
      * @return The amount of stablecoin received.
      */
-    function _redeem(uint256 amount) internal returns (uint256) {
+    function _redeem(address ustbRedemptions, uint256 amount) internal returns (uint256) {
         IERC20 stablecoin = IERC20(_asset);
         uint256 usdcBefore = stablecoin.balanceOf(address(this));
-        IRedemptionIdle(_redemptionContract).redeem(amount);
+        IRedemptionIdle(ustbRedemptions).redeem(amount);
         uint256 usdcReceived = stablecoin.balanceOf(address(this)) - usdcBefore;
         stablecoin.transfer(msg.sender, usdcReceived);
         return usdcReceived;
@@ -151,7 +156,7 @@ contract SuperStateEscrow is ISuperStateEscrow {
     }
 
     /// @inheritdoc ISuperStateEscrow
-    function borrowModule() external view returns (address) {
+    function bloomPool() external view returns (address) {
         return _bloomPool;
     }
 
