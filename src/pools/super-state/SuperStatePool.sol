@@ -49,9 +49,6 @@ contract SuperStatePool is BloomPool {
                                 Storage 
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice The maximum allowed age of the price.
-    uint256 public maxStaleness;
-
     /// @notice Mapping of borrower addresses to their associated escrow addresses.
     mapping(address => address) internal _borrowerToAccount;
 
@@ -103,11 +100,6 @@ contract SuperStatePool is BloomPool {
         account = address(new SuperStateEscrow(borrower, _redemptionContract));
         _borrowerToAccount[borrower] = account;
         whitelistBorrower(borrower, true);
-    }
-
-    function setMaxStaleness(uint256 _maxStaleness) external onlyOwner {
-        require(_maxStaleness > 0, Errors.ZeroAmount());
-        maxStaleness = _maxStaleness;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -181,7 +173,7 @@ contract SuperStatePool is BloomPool {
     }
 
     function _getRwaPrice() internal view override returns (uint256) {
-        // We use SuperStates ```calculateUsdcOut``` function instead of the direct price feed 
+        // We use SuperStates ```calculateUsdcOut``` function instead of the direct price feed
         //    to account for fees that are incurred when redeeming USTB
         (uint256 usdcOutAmount,) = IRedemptionIdle(_redemptionContract).calculateUsdcOut(1e18);
         return usdcOutAmount;
@@ -205,5 +197,10 @@ contract SuperStatePool is BloomPool {
     /// @notice Returns the hashed ids associated with the given TBY id.
     function tbyIdToHashedIds(uint256 tbyId) external view returns (bytes32[] memory) {
         return _tbyIdToHashedIds[tbyId];
+    }
+
+    /// @notice Returns the address of the redemption contract.
+    function redemptionContract() external view returns (address) {
+        return _redemptionContract;
     }
 }

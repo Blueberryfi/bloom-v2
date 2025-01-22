@@ -24,7 +24,6 @@ import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
  * @title BloomPool
  * @notice Reusable logic for building BloomPools on the Bloom Protocol.
  */
-
 abstract contract BloomPool is IBloomPool, Tby, Ownable {
     using FpMath for uint256;
     using SafeERC20 for IERC20;
