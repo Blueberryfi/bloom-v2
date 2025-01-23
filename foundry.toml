@@ -3,6 +3,7 @@ src = "src"
 out = "out"
 libs = ["dependencies"]
 via-ir = true
+optimizer = true
 
 [fuzz]
 runs = 10000
