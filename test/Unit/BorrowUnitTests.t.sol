@@ -210,7 +210,7 @@ contract BorrowUnitTests is BloomTestSetup {
         vm.startPrank(owner);
         // Should revert if spread is less than the minimum spread
         vm.expectRevert(Errors.InvalidSpread.selector);
-        mockBloomPool.setSpread(.84e18);
+        mockBloomPool.setSpread(0.84e18);
 
         // Should revert if the spread is 1e18 or greater
         vm.expectRevert(Errors.InvalidSpread.selector);
