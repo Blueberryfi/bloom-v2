@@ -12,6 +12,7 @@ pragma solidity 0.8.27;
 import {BloomErrors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {BloomRouter} from "@bloom-v2/BloomRouter.sol";
 import {IBloomRouter} from "@bloom-v2/interfaces/IBloomRouter.sol";
+import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -181,5 +182,25 @@ contract LendUnitTests is BloomTestSetup {
 
         vm.expectRevert(BloomErrors.OrderBelowMinSize.selector);
         bloomRouter.lendOrder(amount);
+    }
+
+    function testUpdateMinOrderSize() public {
+        // Should revert if not owner
+        vm.startPrank(rando);
+        vm.expectRevert();
+        bloomRouter.setMinOrderSize(2e6);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+
+        // Should revert if minOrderSize is 0
+        vm.expectRevert(Errors.ZeroAmount.selector);
+        bloomRouter.setMinOrderSize(0);
+
+        // Should set the min order size successfully
+        bloomRouter.setMinOrderSize(2e6);
+        vm.stopPrank();
+
+        assertEq(bloomRouter.minOrderSize(), 2e6);
     }
 }

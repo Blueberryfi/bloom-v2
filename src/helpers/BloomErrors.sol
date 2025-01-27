@@ -27,6 +27,12 @@ library BloomErrors {
     /// @notice Emitted when the owner tries to set the spread to a value that is too large.
     error InvalidSpread();
 
+    /// @notice Emitted when the owner tries to set the swap buffer to a value that is too small.
+    error InvalidSwapBuffer();
+
+    /// @notice Emitted when the owner tries to set the loan duration to a value that is too small.
+    error InvalidLoanDuration();
+
     /// @notice Emitted when inputed parameters do not match the expected parameters.
     error InputMismatch();
 

@@ -12,6 +12,8 @@ pragma solidity 0.8.27;
 import {BloomRouter} from "@bloom-v2/BloomRouter.sol";
 import {IBloomRouter} from "@bloom-v2/interfaces/IBloomRouter.sol";
 
+import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
+
 import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {MockPriceFeed} from "../mocks/MockPriceFeed.sol";

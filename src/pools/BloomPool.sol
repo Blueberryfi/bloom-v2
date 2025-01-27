@@ -85,17 +85,17 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
     IERC20 internal immutable _rwa;
 
     /// @notice The upper bound leverage allowed for pool (Cant be set to 100x but just under).
-    uint256 constant MAX_LEVERAGE = 100e18;
+    uint256 public constant MAX_LEVERAGE = 100e18;
 
     /// @notice Minimum spread between the TBY rate and the rate of the RWA's price appreciation.
-    uint256 constant MIN_SPREAD = 0.85e18;
+    uint256 public constant MIN_SPREAD = 0.85e18;
 
     /// @notice The buffer time between the first minted token of a given TBY id
     ///         and the last possible swap in for that tokenId.
-    uint256 constant SWAP_BUFFER = 48 hours;
+    uint256 public constant DEFAULT_SWAP_BUFFER = 48 hours;
 
     /// @notice The default length of time that TBYs mature.
-    uint256 constant DEFAULT_MATURITY = 180 days;
+    uint256 public constant DEFAULT_MATURITY = 180 days;
 
     /// @notice 1 RWA token in its own decimals.
     uint256 internal immutable _ONE_RWA;
@@ -150,7 +150,7 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
         _setLeverage(initLeverage);
         _setSpread(initSpread);
 
-        _swapBuffer = SWAP_BUFFER;
+        _swapBuffer = DEFAULT_SWAP_BUFFER;
         _loanDuration = DEFAULT_MATURITY;
         _lastMintedId = type(uint256).max;
     }
@@ -300,6 +300,7 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
      * @param buffer The new buffer time.
      */
     function setSwapBuffer(uint256 buffer) external onlyOwner {
+        require(buffer > 0 && buffer < _loanDuration, Errors.InvalidSwapBuffer());
         _swapBuffer = buffer;
     }
 
@@ -309,6 +310,7 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
      * @param duration The new duration of the loan.
      */
     function setLoanDuration(uint256 duration) external onlyOwner {
+        require(duration > _swapBuffer, Errors.InvalidLoanDuration());
         _loanDuration = duration;
     }
 
@@ -353,7 +355,7 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
 
     /// @notice Internal logic to set the spread.
     function _setSpread(uint256 spread_) internal {
-        require(spread_ >= MIN_SPREAD, Errors.InvalidSpread());
+        require(spread_ >= MIN_SPREAD && spread_ < FpMath.WAD, Errors.InvalidSpread());
         _spread = spread_;
         emit SpreadSet(spread_);
     }

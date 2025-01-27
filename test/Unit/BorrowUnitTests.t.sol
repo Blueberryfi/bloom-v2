@@ -13,6 +13,7 @@ import {FixedPointMathLib as FpMath} from "@solady/utils/FixedPointMathLib.sol";
 import {ERC1155} from "@solady/tokens/ERC1155.sol";
 
 import {BloomRouter} from "@bloom-v2/BloomRouter.sol";
+import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 
 import {BloomTestSetup} from "../BloomTestSetup.t.sol";
 import {MockBloomPool} from "../mocks/MockBloomPool.sol";
@@ -129,12 +130,14 @@ contract BorrowUnitTests is BloomTestSetup {
         );
 
         bloomRouter.addPool(address(mockBloomPool2));
+        assertEq(bloomRouter.isPool(address(mockBloomPool2)), true);
 
         MockBloomPool mockBloomPool3 = new MockBloomPool(
             "Test 3", "TEST-3", address(bloomRouter), address(billToken), address(priceFeed), 6, 50e18, 0.995e18, owner
         );
 
         bloomRouter.addPool(address(mockBloomPool3));
+        assertEq(bloomRouter.isPool(address(mockBloomPool3)), true);
 
         uint256 amount = 300e6;
 
@@ -185,5 +188,111 @@ contract BorrowUnitTests is BloomTestSetup {
         assertEq(tbyId, 3);
         assertEq(mockBloomPool.balanceOf(alice, 3), 50e6);
         assertEq(mockBloomPool.borrowerAmount(borrower1, 3), 1e6);
+    }
+
+    function testPausePool() public {
+        // initial state should be active
+        assertEq(bloomRouter.isPool(address(mockBloomPool)), true);
+
+        vm.startPrank(owner);
+        bloomRouter.pausePool(address(mockBloomPool));
+        vm.stopPrank();
+        assertEq(bloomRouter.isPool(address(mockBloomPool)), false);
+    }
+
+    function testUpdateSpread() public {
+        // Should revert if not owner
+        vm.startPrank(rando);
+        vm.expectRevert();
+        mockBloomPool.setSpread(0.01e18);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        // Should revert if spread is less than the minimum spread
+        vm.expectRevert(Errors.InvalidSpread.selector);
+        mockBloomPool.setSpread(.84e18);
+
+        // Should revert if the spread is 1e18 or greater
+        vm.expectRevert(Errors.InvalidSpread.selector);
+        mockBloomPool.setSpread(1e18);
+
+        vm.expectRevert(Errors.InvalidSpread.selector);
+        mockBloomPool.setSpread(1.1e18);
+
+        mockBloomPool.setSpread(0.9e18);
+        vm.stopPrank();
+
+        assertEq(mockBloomPool.spread(), 0.9e18);
+    }
+
+    function testSetSwapBuffer() public {
+        // Should revert if not owner
+        vm.startPrank(rando);
+        vm.expectRevert();
+        mockBloomPool.setSwapBuffer(50 hours);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        uint256 loanDuration = mockBloomPool.loanDuration();
+
+        // Should revert if the swap buffer is greater than or equal to the loan duration
+        vm.expectRevert(Errors.InvalidSwapBuffer.selector);
+        mockBloomPool.setSwapBuffer(loanDuration);
+
+        uint256 badBuffer = loanDuration + 1;
+        vm.expectRevert(Errors.InvalidSwapBuffer.selector);
+        mockBloomPool.setSwapBuffer(badBuffer);
+
+        // Should set the swap buffer successfully
+        uint256 newSwapBuffer = loanDuration - 1;
+        mockBloomPool.setSwapBuffer(newSwapBuffer);
+        vm.stopPrank();
+
+        assertEq(mockBloomPool.swapBuffer(), newSwapBuffer);
+    }
+
+    function testSetLoanDuration() public {
+        // Should revert if not owner
+        vm.startPrank(rando);
+        vm.expectRevert();
+        mockBloomPool.setLoanDuration(50 hours);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        // Should revert if the loan duration is less than the swap buffer
+        vm.expectRevert(Errors.InvalidLoanDuration.selector);
+        mockBloomPool.setLoanDuration(1 days);
+
+        // Should successfully set the loan duration
+        uint256 newLoanDuration = mockBloomPool.swapBuffer() + 1;
+        mockBloomPool.setLoanDuration(newLoanDuration);
+        vm.stopPrank();
+
+        assertEq(mockBloomPool.loanDuration(), newLoanDuration);
+    }
+
+    function testSetLeverage() public {
+        // Should revert if not owner
+        vm.startPrank(rando);
+        vm.expectRevert();
+        mockBloomPool.setLeverage(1.5e18);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+
+        // Should revert if the leverage is less than 1e18
+        vm.expectRevert(Errors.InvalidLeverage.selector);
+        mockBloomPool.setLeverage(0.99e18);
+
+        // Should revert if the leverage is greater than MAX_LEVERAGE
+        vm.expectRevert(Errors.InvalidLeverage.selector);
+        mockBloomPool.setLeverage(101e18);
+
+        // Should successfully set the leverage
+        uint256 newLeverage = mockBloomPool.MAX_LEVERAGE() - 1;
+        mockBloomPool.setLeverage(newLeverage);
+        vm.stopPrank();
+
+        assertEq(mockBloomPool.leverage(), newLeverage);
     }
 }

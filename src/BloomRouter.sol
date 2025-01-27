@@ -205,6 +205,7 @@ contract BloomRouter is IBloomRouter, Ownable2Step, ReentrancyGuard {
      * @param minOrderSize_ The new minimum order size.
      */
     function setMinOrderSize(uint256 minOrderSize_) external onlyOwner {
+        require(minOrderSize_ > 0, Errors.ZeroAmount());
         _minOrderSize = minOrderSize_;
     }
 
