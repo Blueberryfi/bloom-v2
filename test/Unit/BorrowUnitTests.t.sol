@@ -36,6 +36,10 @@ contract BorrowUnitTests is BloomTestSetup {
         bloomRouter.addPool(address(mockBloomPool));
     }
 
+    function testConstructor() public {
+        assertEq(mockBloomPool.bloomRouter(), address(bloomRouter));
+    }
+
     function testBorrowSingleBorrower() public {
         uint256 amount = 100e6;
 
