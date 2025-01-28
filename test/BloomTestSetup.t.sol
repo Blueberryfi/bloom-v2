@@ -58,7 +58,7 @@ abstract contract BloomTestSetup is Test {
     }
 
     function _createLendOrder(address account, uint256 amount) internal {
-        stable.mint(account, amount);
+        _dealUSDC(account, amount);
         vm.startPrank(account);
         stable.approve(address(bloomRouter), amount);
         bloomRouter.lendOrder(amount);
@@ -67,7 +67,7 @@ abstract contract BloomTestSetup is Test {
 
     function _initBorrow(address borrower, uint256 amount) internal returns (uint256 borrowAmount) {
         borrowAmount = amount.divWad(initialLeverage);
-        stable.mint(borrower, borrowAmount);
+        _dealUSDC(borrower, borrowAmount);
         vm.startPrank(borrower);
         stable.approve(address(bloomRouter), borrowAmount);
         bloomRouter.borrow(lenders, borrower, amount);
@@ -95,5 +95,9 @@ abstract contract BloomTestSetup is Test {
         } else {
             billToken = MockERC20(billToken_);
         }
+    }
+
+    function _dealUSDC(address account, uint256 amount) internal virtual {
+        stable.mint(account, amount);
     }
 }

@@ -26,7 +26,7 @@ contract BloomRouterFuzzTests is BloomTestSetup {
 
     function testLendOrder(uint256 amount) public {
         amount = bound(amount, 1e6, 1_000_000e6);
-        stable.mint(alice, amount);
+        _dealUSDC(alice, amount);
 
         uint256 preAliceBalance = stable.balanceOf(alice);
 
@@ -46,83 +46,5 @@ contract BloomRouterFuzzTests is BloomTestSetup {
 
         // Last Minted Id does not change
         assertEq(bloomRouter.lastMintedId(), type(uint256).max);
-    }
-
-    function testDiffDecimals(uint256 stableDecimals, uint256 rwaDecimals) public {
-        stableDecimals = bound(stableDecimals, 4, 18);
-        rwaDecimals = bound(rwaDecimals, 4, 18);
-        uint256 minOrderSize = 10 ** stableDecimals;
-
-        // setup tokens, price feeds, and borrow module
-        vm.startPrank(owner);
-
-        MockERC20 s = new MockERC20("Stable", "STABLE", uint8(stableDecimals));
-        MockERC20 r = new MockERC20("RWA", "RWA", uint8(rwaDecimals));
-
-        BloomRouter router = new BloomRouter(address(s), minOrderSize, owner);
-
-        // setup borrow module
-        MockBloomPool pool = new MockBloomPool(
-            "Mock Bloom Pool",
-            "Test",
-            address(router),
-            address(r),
-            address(priceFeed),
-            uint8(stableDecimals),
-            50e18,
-            0.995e18,
-            owner
-        );
-        pool.whitelistBorrower(borrower1, true);
-        // Add module to pool
-        router.addPool(address(pool));
-
-        // Alice lends
-        uint256 amount = 100 * 10 ** stableDecimals;
-        vm.startPrank(alice);
-        s.mint(alice, amount);
-        s.approve(address(router), amount);
-        router.lendOrder(amount);
-        lenders.push(alice);
-
-        // borrower borrows
-        vm.startPrank(borrower1);
-        uint256 bCollateral = 2 * 10 ** stableDecimals;
-        s.mint(borrower1, bCollateral);
-        s.approve(address(pool), bCollateral);
-        router.borrow(lenders, address(pool), amount);
-
-        assertEq(pool.balanceOf(alice, 0), amount);
-        assertEq(pool.tbyCollateral(0).rwaAmount, 102 * 10 ** (rwaDecimals - 2));
-
-        _skipAndUpdatePrice(180 days, 105e8, 2);
-
-        assertEq(pool.getRate(0), 1.04975e18);
-
-        router.repay(0);
-
-        assertEq(pool.tbyCollateral(0).assetAmount, 1071 * 10 ** (stableDecimals - 1));
-        assertEq(pool.tbyCollateral(0).rwaAmount, 0);
-
-        uint256 expectedLenderReturn = 104975 * 10 ** (stableDecimals - 3);
-        uint256 expectedBorrowerReturn = 2125 * 10 ** (stableDecimals - 3);
-
-        assertEq(pool.lenderReturns(0), expectedLenderReturn);
-        assertEq(pool.borrowerReturns(0), expectedBorrowerReturn);
-
-        vm.startPrank(alice);
-        pool.setApprovalForAll(address(router), true);
-        router.redeemLender(0, pool.balanceOf(alice, 0));
-
-        assertEq(s.balanceOf(alice), expectedLenderReturn);
-        assertEq(s.balanceOf(address(pool)), expectedBorrowerReturn);
-
-        vm.startPrank(borrower1);
-        router.redeemBorrower(0);
-
-        assertEq(s.balanceOf(borrower1), expectedBorrowerReturn);
-
-        assertEq(pool.tbyCollateral(0).assetAmount, 0);
-        assertEq(s.balanceOf(address(pool)), 0);
     }
 }

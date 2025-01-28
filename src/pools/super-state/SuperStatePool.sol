@@ -188,9 +188,9 @@ contract SuperStatePool is BloomPool {
         return _borrowerToAccount[borrower];
     }
 
-    /// @notice Returns the amount of RWA tokens associated with the given borrower.
-    function borrowersRwaAmount(address borrower) external view returns (uint256) {
-        bytes32 hashedId = keccak256(abi.encodePacked(_lastMintedId, borrower));
+    /// @notice Returns the amount of RWA tokens purchased by the given borrower for the given TBY id.
+    function ustbPurchased(address borrower, uint256 tbyId) external view returns (uint256) {
+        bytes32 hashedId = keccak256(abi.encodePacked(tbyId, borrower));
         return _idToAccountData[hashedId].rwaAmount;
     }
 

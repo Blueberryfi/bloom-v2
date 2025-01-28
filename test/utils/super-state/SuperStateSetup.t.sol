@@ -39,6 +39,10 @@ abstract contract SuperStateSetup is BloomTestSetup {
             REDEMPTION_CONTRACT
         );
 
+        vm.startPrank(owner);
+        bloomRouter.addPool(address(ustbPool));
+        vm.stopPrank();
+
         vm.rollFork(21675390);
     }
 
@@ -65,7 +69,7 @@ abstract contract SuperStateSetup is BloomTestSetup {
         vm.stopPrank();
     }
 
-    function _dealUSDC(address to, uint256 amount) internal {
+    function _dealUSDC(address to, uint256 amount) internal virtual override {
         vm.startPrank(USDC_WHALE);
         stable.transfer(to, amount);
         vm.stopPrank();

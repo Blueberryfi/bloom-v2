@@ -67,7 +67,7 @@ contract BloomRouter is IBloomRouter, Ownable2Step, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     modifier validPool(address pool) {
-        if (!_bloomPools[pool]) revert Errors.InvalidPool();
+        require(_bloomPools[pool], Errors.InvalidPool());
         _;
     }
 
@@ -121,6 +121,8 @@ contract BloomRouter is IBloomRouter, Ownable2Step, ReentrancyGuard {
             amounts[i] = _fillOrder(lenders[i], amount);
             if (amounts[i] == 0) break;
             lCollateral += amounts[i];
+            amount -= amounts[i];
+            if (amount == 0) break;
         }
 
         IERC20(_asset).forceApprove(pool, lCollateral);
