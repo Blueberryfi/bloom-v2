@@ -11,7 +11,7 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {IRedemptionIdle} from "@bloom-v2/interfaces/super-state/IRedemptionIdle.sol";
 import {IUstbExtension} from "../utils/super-state/interfaces/IUstbExtension.sol";
 import {SuperStateSetup} from "../utils/super-state/SuperStateSetup.t.sol";
-import {console2} from "forge-std/console2.sol";
+import {ISuperStateOracle} from "../utils/super-state/interfaces/ISuperStateOracle.sol";
 
 contract SuperStatePoolTests is SuperStateSetup {
     using FpMath for uint256;
@@ -67,7 +67,9 @@ contract SuperStatePoolTests is SuperStateSetup {
         assertEq(ustbPool.ustbPurchased(borrower1, 0), expectedUstb);
     }
 
-    function testBorrowSingleLenderMultipleBorrowers(uint256 amount, uint256 borrow1Amount, uint256 borrow2Amount) public {
+    function testBorrowSingleLenderMultipleBorrowers(uint256 amount, uint256 borrow1Amount, uint256 borrow2Amount)
+        public
+    {
         amount = bound(amount, 10e6, 10_000_000e6);
         borrow1Amount = bound(borrow1Amount, 1e6, amount - 1e6);
         borrow2Amount = bound(borrow2Amount, 1e6, amount - borrow1Amount);
@@ -127,15 +129,15 @@ contract SuperStatePoolTests is SuperStateSetup {
         assertEq(ustbPool.ustbPurchased(borrower2, 0), expectedUstb2);
     }
 
-    function testBorrowMultipleLenders(uint256 amount1, uint256 amount2, uint256 amount3, uint256 borrowAmount) public {
+    function testBorrowMultipleLenders(uint256 amount1, uint256 amount2, uint256 amount3, uint256 borrowAmount)
+        public
+    {
         amount1 = bound(amount1, 1e6, 1_000_000e6);
         amount2 = bound(amount2, 1e6, 1_000_000e6);
         amount3 = bound(amount3, 1e6, 1_000_000e6);
         uint256 totalAmount = amount1 + amount2 + amount3;
         borrowAmount = bound(borrowAmount, amount1 + amount2 + 1e6, totalAmount);
         vm.assume(totalAmount - borrowAmount >= 1e6);
-
-        console2.log("borrowAmount", borrowAmount);
 
         _initBorrowers();
         _createLendOrder(alice, amount1);
@@ -146,7 +148,6 @@ contract SuperStatePoolTests is SuperStateSetup {
         lenders.push(rando);
 
         uint256 borrowerCollateral = borrowAmount.divWadUp(ustbPool.leverage());
-        console2.log("borrowerCollateral", borrowerCollateral);
         uint256 totalCollateral = borrowerCollateral + borrowAmount;
 
         _dealUSDC(borrower1, borrowerCollateral);
@@ -158,7 +159,8 @@ contract SuperStatePoolTests is SuperStateSetup {
         bloomRouter.borrow(lenders, address(ustbPool), borrowAmount);
         vm.stopPrank();
 
-        (uint256 expectedUstb,,) = IUstbExtension(address(billToken)).calculateSuperstateTokenOut(totalCollateral, address(stable));
+        (uint256 expectedUstb,,) =
+            IUstbExtension(address(billToken)).calculateSuperstateTokenOut(totalCollateral, address(stable));
 
         // Validate token balances
         assertEq(stable.balanceOf(borrower1), 0);
@@ -181,7 +183,7 @@ contract SuperStatePoolTests is SuperStateSetup {
         assertEq(ustbPool.ustbPurchased(borrower1, 0), expectedUstb);
     }
 
-    function testRepaySingleLenderSingleBorrower(uint256 amount) public {
+    function testRepaySingleBorrower(uint256 amount) public {
         amount = bound(amount, 1e6, 10_000_000e6);
         _initBorrowers();
         _createLendOrder(alice, amount);
@@ -189,10 +191,35 @@ contract SuperStatePoolTests is SuperStateSetup {
 
         _initBorrow(borrower1, address(ustbPool), amount);
 
+        // Increase time and have TBYs increase by 5%
+        (, int256 currentPrice,,,) = ISuperStateOracle(SUPERSTATE_ORACLE).latestRoundData();
+        uint256 newPrice = uint256(currentPrice) + (uint256(currentPrice) * 5 / 100);
+        vm.warp(block.timestamp + 180 days);
+        _updateUstbPrice(uint128(newPrice));
+        vm.warp(block.timestamp + 1 days);
+
         vm.startPrank(borrower1);
         stable.approve(address(ustbPool), amount);
         bloomRouter.repay(0);
         vm.stopPrank();
+
+        // If there are still RWA tokens left then we should fill up the SuperStateRedemption contract with more USDC
+        if (ustbPool.tbyCollateral(0).rwaAmount != 0) {
+            (uint256 usdcNeeded,) =
+                IRedemptionIdle(REDEMPTION_CONTRACT).calculateUsdcOut(ustbPool.tbyCollateral(0).rwaAmount);
+            _dealUSDC(REDEMPTION_CONTRACT, usdcNeeded);
+
+            vm.startPrank(borrower1);
+            stable.approve(address(ustbPool), amount);
+            bloomRouter.repay(0);
+            vm.stopPrank();
+        }
+
+        uint256 assetBalance = stable.balanceOf(address(ustbPool));
+        uint256 expectedLenderReturns = ustbPool.getRate(0).mulWad(ustbPool.totalSupply(0));
+
+        assertEq(ustbPool.lenderReturns(0), expectedLenderReturns);
+        assertEq(ustbPool.borrowerReturns(0), assetBalance - expectedLenderReturns);
     }
 
     function _initBorrowers() internal {

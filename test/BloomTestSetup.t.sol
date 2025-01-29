@@ -17,6 +17,7 @@ import {Tby} from "@bloom-v2/token/Tby.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockPriceFeed} from "./mocks/MockPriceFeed.sol";
+import {IBloomPool} from "@bloom-v2/interfaces/IBloomPool.sol";
 
 abstract contract BloomTestSetup is Test {
     using FpMath for uint256;
@@ -66,10 +67,10 @@ abstract contract BloomTestSetup is Test {
     }
 
     function _initBorrow(address borrower, address pool, uint256 amount) internal returns (uint256 borrowAmount) {
-        borrowAmount = amount.divWad(initialLeverage);
+        borrowAmount = amount.divWadUp(IBloomPool(pool).leverage());
         _dealUSDC(borrower, borrowAmount);
         vm.startPrank(borrower);
-        stable.approve(address(bloomRouter), borrowAmount);
+        stable.approve(address(pool), borrowAmount);
         bloomRouter.borrow(lenders, pool, amount);
         vm.stopPrank();
     }

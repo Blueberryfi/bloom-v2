@@ -19,8 +19,6 @@ import {MockAMM} from "./MockAMM.sol";
 import {MockERC20} from "./MockERC20.sol";
 import {MockPriceFeed} from "./MockPriceFeed.sol";
 
-import "forge-std/console.sol";
-
 /**
  * @title MockBloomPool
  * @notice An extremely simplified mock Bloom Pool for testing purposes.

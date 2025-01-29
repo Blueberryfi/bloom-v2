@@ -31,8 +31,8 @@ contract SuperStateEscrowTest is SuperStateSetup {
         _kycWithSuperState(address(escrow));
 
         // Calculated the expected purchase amount
-        (uint256 expectedUstb, , ) = IUstbExtension(address(billToken))
-            .calculateSuperstateTokenOut(amount, address(stable));
+        (uint256 expectedUstb,,) =
+            IUstbExtension(address(billToken)).calculateSuperstateTokenOut(amount, address(stable));
 
         // Execute purchase
         vm.startPrank(address(ustbPool));
@@ -77,8 +77,7 @@ contract SuperStateEscrowTest is SuperStateSetup {
         vm.stopPrank();
 
         // Calculated the expected stablecoin returned amount
-        (uint256 expectedStable, ) = IRedemptionIdle(REDEMPTION_CONTRACT)
-            .calculateUsdcOut(ustbPurchased);
+        (uint256 expectedStable,) = IRedemptionIdle(REDEMPTION_CONTRACT).calculateUsdcOut(ustbPurchased);
 
         // Execute repayment
         vm.startPrank(address(ustbPool));

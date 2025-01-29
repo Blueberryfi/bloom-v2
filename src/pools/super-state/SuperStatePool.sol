@@ -128,7 +128,7 @@ contract SuperStatePool is BloomPool {
     }
 
     /// @inheritdoc BloomPool
-    function _repayRwa(uint256 rwaAmount) internal virtual override returns (uint256 totalRepaid) {
+    function _repayRwa(uint256 rwaAmount) internal virtual override returns (uint256 assetsReceived) {
         uint256 tbyId = _lastMintedId;
         bytes32[] storage hashedIds = _tbyIdToHashedIds[tbyId];
 
@@ -141,8 +141,8 @@ contract SuperStatePool is BloomPool {
 
             uint256 amountToRepay = FpMath.min(data.rwaAmount, rwaAmount);
             data.rwaAmount -= amountToRepay;
-            totalRepaid += amountToRepay;
-            rwaAmount -= SuperStateEscrow(data.escrow).executeRepayment(amountToRepay);
+            rwaAmount -= amountToRepay;
+            assetsReceived += SuperStateEscrow(data.escrow).executeRepayment(amountToRepay);
 
             if (data.rwaAmount == 0) delete _idToAccountData[hashedIds[i]];
             if (rwaAmount == 0) break;
@@ -153,12 +153,12 @@ contract SuperStatePool is BloomPool {
     function _getRwaSwapAmount(uint256 tbyId) internal view virtual override returns (uint256 totalRwaAmount) {
         bytes32[] memory hashedIds = _tbyIdToHashedIds[tbyId];
         uint256 ustbBalance = _idToCollateral[tbyId].rwaAmount;
+
         // Get the total amount of USTB that can be redeemed
         (uint256 maxRedemptionAmount,) = IRedemptionIdle(_redemptionContract).maxUstbRedemptionAmount();
-
         require(maxRedemptionAmount > 0, NoRedeemableLiquidity());
 
-        if (maxRedemptionAmount >= ustbBalance) {
+        if (maxRedemptionAmount > ustbBalance) {
             maxRedemptionAmount = ustbBalance;
         }
 

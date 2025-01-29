@@ -82,52 +82,42 @@ abstract contract SuperStateSetup is BloomTestSetup {
     function _updateUstbPrice(uint128 newNavs) public {
         uint64 nowTimestamp = uint64(block.timestamp - 1);
         uint64 prevTimestamp = nowTimestamp - 1 days;
-        
+
         vm.startPrank(SUPERSTATE_ORACLE_OWNER);
 
         // Add previous day's checkpoint
-        ISuperStateOracle(SUPERSTATE_ORACLE).addCheckpoint(
-            prevTimestamp,
-            uint64(block.timestamp),
-            newNavs,
-            false
-        );
-        
+        ISuperStateOracle(SUPERSTATE_ORACLE).addCheckpoint(prevTimestamp, uint64(block.timestamp), newNavs, false);
+
         // Add current checkpoint
-        ISuperStateOracle(SUPERSTATE_ORACLE).addCheckpoint(
-            nowTimestamp,
-            uint64(block.timestamp + 1),
-            newNavs,
-            false
-        );
+        ISuperStateOracle(SUPERSTATE_ORACLE).addCheckpoint(nowTimestamp, uint64(block.timestamp + 1), newNavs, false);
         vm.stopPrank();
     }
 
     // Example test using the helper with fork testing
     function testUstbPriceUpdateOverTime() public {
-        // Get starting price 
-        (,int256 startPrice,,,) = ISuperStateOracle(SUPERSTATE_ORACLE).latestRoundData();
-        
+        // Get starting price
+        (, int256 startPrice,,,) = ISuperStateOracle(SUPERSTATE_ORACLE).latestRoundData();
+
         // 1st price update
         uint128 firstUpdatePrice = uint128(uint256(startPrice) + 500000);
         _updateUstbPrice(firstUpdatePrice);
 
         // Move forward in time
         vm.warp(block.timestamp + 2 days);
-        
+
         // Verify initial price
-        (,int256 price,,,) = ISuperStateOracle(SUPERSTATE_ORACLE).latestRoundData();
+        (, int256 price,,,) = ISuperStateOracle(SUPERSTATE_ORACLE).latestRoundData();
         assertEq(uint256(price), firstUpdatePrice);
-        
+
         // 2nd price update
         uint128 newPrice = uint128(uint256(firstUpdatePrice) + 500000);
         _updateUstbPrice(newPrice);
 
         // Move forward in time
         vm.warp(block.timestamp + 1 days);
-        
+
         // Verify new price
-        (,price,,,) = ISuperStateOracle(SUPERSTATE_ORACLE).latestRoundData();
+        (, price,,,) = ISuperStateOracle(SUPERSTATE_ORACLE).latestRoundData();
         assertEq(uint256(price), newPrice);
     }
 }

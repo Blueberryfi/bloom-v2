@@ -204,8 +204,6 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
         require(result.rwaRepaid > 0, Errors.ZeroAmount());
 
         TbyCollateral storage collateral = _idToCollateral[tbyId];
-        // Cannot swap out more RWA tokens than is allocated for the TBY.
-        result.rwaRepaid = FpMath.min(result.rwaRepaid, collateral.rwaAmount);
 
         result.assetsReturned = _repayRwa(result.rwaRepaid);
 
@@ -617,9 +615,9 @@ abstract contract BloomPool is IBloomPool, Tby, Ownable {
      *         2. The borrow pool will need to swap the RWA token for the underlying asset collateral.
      *         3. Underlying asset should be held within the borrow pool's contract.
      * @param amount The amount of RWA tokens being repaid.
-     * @return The amount of underlying asset collateral being received.
+     * @return assetsReceived The amount of underlying asset collateral being received.
      */
-    function _repayRwa(uint256 amount) internal virtual returns (uint256);
+    function _repayRwa(uint256 amount) internal virtual returns (uint256 assetsReceived);
 
     /**
      * @notice Returns the amount of RWA tokens that are being swapped out of the pool.
