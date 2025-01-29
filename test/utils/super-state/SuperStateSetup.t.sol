@@ -9,6 +9,7 @@ import {BloomErrors as Errors} from "@bloom-v2/helpers/BloomErrors.sol";
 import {IRedemptionIdle} from "@bloom-v2/interfaces/super-state/IRedemptionIdle.sol";
 import {IUstbExtension} from "./interfaces/IUstbExtension.sol";
 import {ISuperStateAllowListV2} from "./interfaces/ISuperStateAllowListV2.sol";
+import {ISuperStateOracle} from "./interfaces/ISuperStateOracle.sol";
 
 abstract contract SuperStateSetup is BloomTestSetup {
     uint256 internal mainnetFork;
@@ -17,6 +18,8 @@ abstract contract SuperStateSetup is BloomTestSetup {
     address internal constant REDEMPTION_CONTRACT = 0x4c21B7577C8FE8b0B0669165ee7C8f67fa1454Cf;
     address internal constant USDC_WHALE = 0x37305B1cD40574E4C5Ce33f8e8306Be057fD7341;
     address internal constant SUPERSTATE_ADMIN = 0x7747940aDBc7191f877a9B90596E0DA4f8deb2Fe;
+    address internal constant SUPERSTATE_ORACLE = 0xE4fA682f94610cCd170680cc3B045d77D9E528a8;
+    address internal constant SUPERSTATE_ORACLE_OWNER = 0x4B1df64357a5D484563c9b7c16a80eD8B8fB1395;
 
     function setUp() public {
         mainnetFork = vm.createFork(vm.envString("ETH_RPC_URL"));
@@ -73,5 +76,58 @@ abstract contract SuperStateSetup is BloomTestSetup {
         vm.startPrank(USDC_WHALE);
         stable.transfer(to, amount);
         vm.stopPrank();
+    }
+
+    // Helper function to update USTB price with two checkpoints
+    function _updateUstbPrice(uint128 newNavs) public {
+        uint64 nowTimestamp = uint64(block.timestamp - 1);
+        uint64 prevTimestamp = nowTimestamp - 1 days;
+        
+        vm.startPrank(SUPERSTATE_ORACLE_OWNER);
+
+        // Add previous day's checkpoint
+        ISuperStateOracle(SUPERSTATE_ORACLE).addCheckpoint(
+            prevTimestamp,
+            uint64(block.timestamp),
+            newNavs,
+            false
+        );
+        
+        // Add current checkpoint
+        ISuperStateOracle(SUPERSTATE_ORACLE).addCheckpoint(
+            nowTimestamp,
+            uint64(block.timestamp + 1),
+            newNavs,
+            false
+        );
+        vm.stopPrank();
+    }
+
+    // Example test using the helper with fork testing
+    function testUstbPriceUpdateOverTime() public {
+        // Get starting price 
+        (,int256 startPrice,,,) = ISuperStateOracle(SUPERSTATE_ORACLE).latestRoundData();
+        
+        // 1st price update
+        uint128 firstUpdatePrice = uint128(uint256(startPrice) + 500000);
+        _updateUstbPrice(firstUpdatePrice);
+
+        // Move forward in time
+        vm.warp(block.timestamp + 2 days);
+        
+        // Verify initial price
+        (,int256 price,,,) = ISuperStateOracle(SUPERSTATE_ORACLE).latestRoundData();
+        assertEq(uint256(price), firstUpdatePrice);
+        
+        // 2nd price update
+        uint128 newPrice = uint128(uint256(firstUpdatePrice) + 500000);
+        _updateUstbPrice(newPrice);
+
+        // Move forward in time
+        vm.warp(block.timestamp + 1 days);
+        
+        // Verify new price
+        (,price,,,) = ISuperStateOracle(SUPERSTATE_ORACLE).latestRoundData();
+        assertEq(uint256(price), newPrice);
     }
 }

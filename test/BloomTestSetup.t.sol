@@ -65,12 +65,12 @@ abstract contract BloomTestSetup is Test {
         vm.stopPrank();
     }
 
-    function _initBorrow(address borrower, uint256 amount) internal returns (uint256 borrowAmount) {
+    function _initBorrow(address borrower, address pool, uint256 amount) internal returns (uint256 borrowAmount) {
         borrowAmount = amount.divWad(initialLeverage);
         _dealUSDC(borrower, borrowAmount);
         vm.startPrank(borrower);
         stable.approve(address(bloomRouter), borrowAmount);
-        bloomRouter.borrow(lenders, borrower, amount);
+        bloomRouter.borrow(lenders, pool, amount);
         vm.stopPrank();
     }
 

@@ -181,6 +181,20 @@ contract SuperStatePoolTests is SuperStateSetup {
         assertEq(ustbPool.ustbPurchased(borrower1, 0), expectedUstb);
     }
 
+    function testRepaySingleLenderSingleBorrower(uint256 amount) public {
+        amount = bound(amount, 1e6, 10_000_000e6);
+        _initBorrowers();
+        _createLendOrder(alice, amount);
+        lenders.push(alice);
+
+        _initBorrow(borrower1, address(ustbPool), amount);
+
+        vm.startPrank(borrower1);
+        stable.approve(address(ustbPool), amount);
+        bloomRouter.repay(0);
+        vm.stopPrank();
+    }
+
     function _initBorrowers() internal {
         SuperStateEscrow borrower1Account = _createBorrowerAccount(borrower1);
         _kycWithSuperState(address(borrower1Account));
